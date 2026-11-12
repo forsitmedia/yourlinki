@@ -239,9 +239,14 @@ export function credentialsSheet(block: PageBlock, isNew = false) {
     inputRow(e.kind === 'work' ? 'Company' : e.kind === 'degree' ? 'School' : 'From', e.org, (v) => { e.org = v; changed(); }, { max: 120, placeholder: e.kind === 'degree' ? 'University of Lisbon' : e.kind === 'work' ? 'Forsitmedia' : 'Google' }),
     inputRow('Year', e.year, (v) => { e.year = v; changed(); }, { max: 30, placeholder: e.kind === 'work' ? '2022 – now' : '2024' }),
     inputRow('Link', e.url ?? '', (v) => { e.url = withScheme(v) || undefined; changed(); }, { type: 'url', placeholder: 'Optional: verify or read more' }),
+    inputRow('Logo URL', e.logo?.startsWith('data:') ? '' : e.logo ?? '', (v) => { e.logo = withScheme(v) || null; changed(); }, { type: 'url', placeholder: 'Paste an image address' }),
+    navRow({
+      lead: svg('globe', 18), title: 'Search for the logo', subtitle: 'Opens image search: right-click a logo, Copy Image Address, paste it above',
+      onClick: () => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${e.org || e.title} logo`)}`, '_blank', 'noopener'),
+    }),
     navRow({
       lead: safeImg(e.logo) ? h('img', { src: safeImg(e.logo), alt: '' }) : svg('photo', 18),
-      title: e.logo ? 'Change Logo' : 'Add Logo', subtitle: 'Optional: the school or company logo',
+      title: e.logo ? 'Upload a Different Logo' : 'Upload Logo', subtitle: 'Or choose a file from your computer',
       onClick: async () => { try { const url = await pickImage(240); if (url) { e.logo = url; changed(true); draw(); } } catch (err: any) { toast(err.message); } },
     }),
     h('div', { class: 'row cred-entry-actions' },

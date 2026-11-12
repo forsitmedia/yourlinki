@@ -97,6 +97,7 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (inset) { styles.push(`--inset:${Math.round(inset)}px`); extra += ' data-inset'; }
   const height = bounded(block.height, 24, 900);
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
+  if (block.cardStyle) extra += ` data-card="${esc(block.cardStyle)}"`;
   if (block.type === 'profile' && cfg) {
     const size = bounded(cfg.profile.photoSize, 48, 180);
     const height = bounded(cfg.profile.coverHeight, 100, 540);
@@ -157,7 +158,8 @@ function credentials(block: PageBlock, data: string): string {
   const variant = block.variant ?? 'list';
   const items = entries.map((e) => {
     const kind = CREDENTIAL_KINDS.find((k) => k.value === e.kind) ?? CREDENTIAL_KINDS[0];
-    const badge = `<span class="cred-badge cred-${kind.value}">${safeImg(e.logo) ? `<img src="${esc(safeImg(e.logo))}" alt="" loading="lazy">` : icon(kind.icon, variant === 'cards' ? 22 : 20)}</span>`;
+    // The icon stays underneath the logo: if a pasted logo address stops working, the icon shows instead of a broken image.
+    const badge = `<span class="cred-badge cred-${kind.value}">${icon(kind.icon, variant === 'cards' ? 22 : 20)}${safeImg(e.logo) ? `<img src="${esc(safeImg(e.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
     const url = safeUrl(e.url ?? '');
     const copy = `<span class="cred-copy"><b>${rich(e.title)}</b>${e.org ? `<span>${esc(e.org)}</span>` : ''}</span>`;
     const year = e.year ? `<time>${esc(e.year)}</time>` : '';

@@ -479,7 +479,8 @@ body[data-margin]:not(.template-studio):not(.template-bold) .stack > .profile-bl
 .creds ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .cred { display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; border-radius: 14px; }
 .cred-badge { flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; overflow: hidden; color: #fff; box-shadow: inset 0 0 0 1px #ffffff1f; }
-.cred-badge img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.cred-badge { position: relative; }
+.cred-badge img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; background: #fff; }
 .cred-degree { background: linear-gradient(145deg, #5e8bff, #3a4fd6); }
 .cred-certificate { background: linear-gradient(145deg, #34c77b, #138a55); }
 .cred-award { background: linear-gradient(145deg, #ffc23a, #e8860c); }
@@ -513,3 +514,13 @@ a.cred:hover .cred-copy b { text-decoration: underline; text-underline-offset: 3
 .creds[data-variant="timeline"] li:only-child .cred-dot::before { display: none; }
 .creds[data-variant="timeline"] .cred-badge { width: 34px; height: 34px; border-radius: 10px; }
 .creds[data-variant="timeline"] .cred-badge svg { width: 17px; height: 17px; }
+
+/* Card background chosen per item: glass, solid, outline or none. */
+.page .stack [data-card]:not(.creds[data-variant="cards"]), .page .stack .creds[data-variant="cards"][data-card] .cred { transition: background .2s ease; }
+.page .stack [data-card="glass"]:not(.creds[data-variant="cards"]), .page .stack .creds[data-variant="cards"][data-card="glass"] .cred { background: var(--glass); border: 1px solid var(--glass-border); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); }
+.page .stack [data-card="solid"]:not(.creds[data-variant="cards"]), .page .stack .creds[data-variant="cards"][data-card="solid"] .cred { background: color-mix(in srgb, var(--bg) 84%, var(--text)); border: 1px solid transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.page .stack [data-card="outline"]:not(.creds[data-variant="cards"]), .page .stack .creds[data-variant="cards"][data-card="outline"] .cred { background: transparent; border: 1.5px solid color-mix(in srgb, var(--text) 32%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.page .stack [data-card="none"]:not(.creds[data-variant="cards"]), .page .stack .creds[data-variant="cards"][data-card="none"] .cred { background: transparent; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+/* Items that are normally bare get room inside once they have a card. */
+.page .stack :is(.stats, .text-block, .bio.tagline)[data-card]:not([data-card="none"]) { padding: 14px 16px; border-radius: 20px; opacity: 1; }
+.page .stack .creds[data-card="none"]:not([data-variant="cards"]) { padding-inline: 0; }

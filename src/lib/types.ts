@@ -28,6 +28,10 @@ export const CREDENTIAL_KINDS = [
 ] as const;
 /** One degree, certificate, award or role in a Credentials item. */
 export type Credential = { kind: typeof CREDENTIAL_KINDS[number]['value']; title: string; org: string; year: string; logo?: string | null; url?: string };
+/** Background of a card item (video, post, image, credentials, bio, highlights, text). */
+export const CARD_STYLES = ['glass', 'solid', 'outline', 'none'] as const;
+export type CardStyle = typeof CARD_STYLES[number];
+export const CARD_TYPES: PageBlock['type'][] = ['youtube', 'post', 'image', 'credentials', 'bio', 'highlights', 'text'];
 export const CREDENTIAL_LAYOUTS = ['list', 'cards', 'timeline'] as const;
 export type Highlight = { value: string; label: string };
 export const TEMPLATE_IDS = ['photo', 'classic', 'studio', 'cover', 'gallery', 'bold', 'minimal'] as const;
@@ -62,6 +66,7 @@ export type PageBlock = {
   inset?: number;
   /** Height chosen by stretching the item from its top or bottom edge, in px. */
   height?: number;
+  cardStyle?: CardStyle;
   /** Social icons stacked in a column instead of a row. */
   vertical?: boolean;
 };
@@ -158,7 +163,8 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     const design = normalizeBlockDesign(b.design);
     const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900);
     const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
-      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}) };
+      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}),
+      ...(CARD_STYLES.includes(b.cardStyle) && CARD_TYPES.includes(b.type) ? { cardStyle: b.cardStyle as CardStyle } : {}) };
     if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
       const key = `${b.type}:${b.part}`;
       if (singles.has(b.type) || parts.has(key)) continue;

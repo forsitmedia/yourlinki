@@ -523,3 +523,7 @@ button.row:active { transition-duration: 0s; }
 .format-hint { margin-left: auto; font-size: 11px; color: var(--sec); }
 
 .cred-entry-actions { display: flex; gap: 14px; justify-content: flex-end; }
+
+.card-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fill-card-solid .shape-sample { border-radius: 7px; border-color: transparent; background: color-mix(in srgb, currentColor 55%, transparent); }
+.fill-none .shape-sample { border-radius: 7px; border-style: dashed; opacity: .5; }

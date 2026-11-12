@@ -11,7 +11,8 @@ import { platform } from '../../lib/platforms';
 import { moveSocial, socialKey } from '../../lib/social-order';
 import { buttonShape, buttonStyle, usesButton } from '../../lib/button-shape';
 import { adjustImage } from './image-editor';
-import { shapePicker, stylePicker } from './shape-picker';
+import { shapePicker, stylePicker, cardPicker } from './shape-picker';
+import { CARD_TYPES } from '../../lib/types';
 import { tileStylePicker } from './tile-style-picker';
 import { TILE_PRESETS } from '../../lib/tile-style';
 import { socialGlyph } from './social-glyph';
@@ -272,7 +273,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -320,8 +321,11 @@ export class VisualCanvas {
     const inset = this.range('Side inset', b.inset ?? 0, 0, 80, 1, (v) => {
       b.inset = v || undefined; el.style.setProperty('--inset', `${v}px`); el.toggleAttribute('data-inset', !!v);
     }, (v) => `${v}px`);
+    const card = CARD_TYPES.includes(b.type) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Card style'),
+      cardPicker(b.cardStyle ?? (b.type === 'highlights' || b.type === 'text' || (b.type === 'bio' && el.classList.contains('tagline')) ? 'none' : 'glass'),
+        (value) => this.action(() => { b.cardStyle = value; el.dataset.card = value; }))) : null;
     const textControls = h('div', { class: 'canvas-text-controls' }, ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]));
-    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
+    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
           el.toggleAttribute('data-vertical', !!b.vertical);
