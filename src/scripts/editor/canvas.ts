@@ -398,8 +398,11 @@ export class VisualCanvas {
       h('p', { style: 'margin-top:10px' }, 'Button style'),
       stylePicker(buttonStyle(link), (value) => this.action(() => { link.buttonStyle = value; el.dataset.buttonStyle = value; }))) : null;
     const textSize = font ? this.range('Text size', Math.round((b.textScale ?? 1) * 100), 60, 200, 5, (v) => {
+      // A box with a set height grows and shrinks with its text, like a text box in Canva.
+      if (b.height) { b.height = Math.round(Math.max(24, Math.min(900, b.height * (v / 100) / (b.textScale ?? 1)))); el.style.setProperty('--h', `${b.height}px`); }
       b.textScale = v === 100 ? undefined : v / 100;
       el.style.setProperty('--text-scale', String(v / 100)); el.toggleAttribute('data-text-scale', v !== 100);
+      (this.doc!.defaultView as any).yourlinkiFit?.(); (this.doc!.defaultView as any).yourlinkiFloat?.();
     }, (v) => `${v}%`) : null;
     const offset = this.range('Space above', b.offset ?? 0, -80, 120, 1, (v) => {
       b.offset = v || undefined; el.style.setProperty('--offset', `${v}px`); el.toggleAttribute('data-offset', !!v);

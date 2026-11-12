@@ -423,8 +423,10 @@ p, .bio { text-wrap: pretty; }
 .template-photo .profile-block:has(> .hero):not(.has-independent-cover):has(+ .bio.tagline) > .identity { margin-bottom: 4px; }
 
 /* Text size chosen per item: the text grows or shrinks, pictures keep their size. */
-.stack [data-text-scale]:is(.bio, .stats, .row-link, .primary, .social, .text-block, .creds),
-.stack [data-text-scale] :is(.identity, .tile > span, .video-copy, .post-copy, .image-card > figcaption) { zoom: var(--text-scale, 1); }
+/* Only what is inside the item is resized: its box, position and spacing stay where they are.
+   (--text-scale is set on the item; --fit shrinks text that doesn't fit a stretched item.) */
+.stack .fit, .stack :is(.row-link, .primary) > span { zoom: calc(var(--text-scale, 1) * var(--fit, 1)); }
+.stack [data-text-scale] :is(.identity, .tile > span, .video-copy, .post-copy, .image-card > figcaption, .row-link > svg, .stats > div, .social > a, .creds > *, .bio > :is(h2, p)) { zoom: var(--text-scale, 1); }
 
 /* Tile shape chosen per link, like phone widgets (lib/tile-style.ts). It wins over the template's shape. */
 .page .tile[data-shape] { --tile-ratio: 4 / 5; aspect-ratio: var(--tile-ratio); align-self: start; }
@@ -544,7 +546,6 @@ html.canvas-editing .deco { pointer-events: auto; }
 /* Text inside a stretched item stays centered in it and is shrunk to fit by FIT_SCRIPT (--fit). */
 .stack :is(.text-block, .bio)[data-height] { display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
 .stack .fit { display: block; }
-.stack [data-height] .fit, .stack :is(.row-link, .primary)[data-height] > span { zoom: var(--fit, 1); }
 .stack :is(.row-link, .primary)[data-height] { overflow: hidden; }
 /* A short stretched card keeps most of its height for the text. */
 .page .stack :is(.text-block, .bio)[data-height][data-card]:not([data-card="none"]) { padding-block: min(14px, calc(var(--h) * .1)); }
