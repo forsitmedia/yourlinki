@@ -53,11 +53,14 @@ export class VisualCanvas {
     const ui = doc.createElement('div'); ui.className = 'canvas-ui';
     ui.innerHTML = `<button type="button" class="canvas-drag" aria-label="Drag selected item" title="Drag to reorder">${icon('grip', 17)}</button><button type="button" class="canvas-edit" aria-label="Edit selected item">Edit</button><button type="button" class="canvas-resize" aria-label="Resize selected item from its right side" title="Drag to change the width, double-click to reset"></button>`
       + ['left', 'top', 'bottom'].map((side) => `<button type="button" class="canvas-side" data-side="${side}" aria-label="Stretch selected item from its ${side} side" title="${side === 'left' ? 'Drag to change the width' : 'Drag to change the height'}, double-click to reset"></button>`).join('')
+      + `<button type="button" class="canvas-rotate" aria-label="Turn selected item" title="Drag to turn, Shift for 15° steps, double-click to straighten">↻</button><span class="canvas-angle" hidden></span>`
       + ['top-left', 'top-right', 'bottom-left', 'bottom-right'].map((corner) => `<button type="button" class="canvas-side canvas-corner" data-side="${corner}" aria-label="Resize selected item from its ${corner.replace('-', ' ')} corner" title="Drag to scale everything together (size and text), double-click to reset"></button>`).join('');
     doc.body.append(ui); this.ui = ui;
     ui.querySelector('.canvas-drag')!.addEventListener('pointerdown', (e) => this.drag(e as PointerEvent));
     ui.querySelector('.canvas-resize')!.addEventListener('pointerdown', (e) => this.resize(e as PointerEvent));
     ui.querySelector('.canvas-resize')!.addEventListener('dblclick', () => this.resetSize());
+    ui.querySelector('.canvas-rotate')!.addEventListener('pointerdown', (e) => this.turn(e as PointerEvent));
+    ui.querySelector('.canvas-rotate')!.addEventListener('dblclick', () => this.action(() => { const b = this.block(); if (b) b.rotate = undefined; }));
     ui.querySelectorAll<HTMLElement>('.canvas-side').forEach((handle) => {
       handle.addEventListener('pointerdown', (e) => this.stretch(e as PointerEvent, handle.dataset.side!));
       handle.addEventListener('dblclick', () => {
@@ -178,6 +181,7 @@ export class VisualCanvas {
     const noResize = !!this.selection?.socialId || this.selection?.part === 'name';
     this.ui.querySelector<HTMLElement>('.canvas-resize')!.hidden = noResize;
     this.ui.querySelectorAll<HTMLElement>('.canvas-side').forEach((handle) => { handle.hidden = noResize || !!this.selection?.part; }); // photo and cover use the right handle
+    this.ui.querySelector<HTMLElement>('.canvas-rotate')!.hidden = noResize || !!this.selection?.part;
     const rect = target.getBoundingClientRect(), win = this.doc.defaultView!;
     const left = Math.max(5, rect.left);
     this.ui.style.left = `${left + win.scrollX}px`; this.ui.style.top = `${rect.top + win.scrollY}px`;
@@ -273,7 +277,7 @@ export class VisualCanvas {
   }
   private range(label: string, value: number, min: number, max: number, step: number, set: (v: number) => void, format: (v: number) => string) {
     const output = h('output', {}, format(value));
-    const input = h('input', { type: 'range', value, min, max, step, 'aria-label': label, 'data-control': label,
+    const input = h('input', { type: 'range', min, max, step, value, 'aria-label': label, 'data-control': label, // range before value, or negative values clamp to 0
       oninput: (event: Event) => { this.history.begin(); const v = Number((event.target as HTMLInputElement).value); set(v); output.textContent = format(v); this.position(); },
       onchange: () => this.finish(),
       onpointercancel: () => { this.history.cancel(); this.o.commit(true); },
@@ -343,7 +347,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.iconColor = undefined; b.iconStyle = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -397,7 +401,10 @@ export class VisualCanvas {
     const free = b.dx || b.dy ? h('div', { class: 'canvas-free-info' },
       h('span', {}, `Moved freely: ${b.dx ?? 0} → , ${b.dy ?? 0} ↓`),
       h('button', { type: 'button', onclick: () => this.action(() => { b.dx = undefined; b.dy = undefined; }) }, 'Put back')) : null;
-    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]));
+    const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
+      b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);
+    }, (v) => `${v}°`);
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]), ...(rotation ? [rotation] : []));
     this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [this.iconColors(b)] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
@@ -501,6 +508,26 @@ export class VisualCanvas {
       if (part) this.setProfileSize(avatar ? rect.width + (e.clientX - x + e.clientY - y) / 2 : rect.height + e.clientY - y, avatar);
       else { const value = span + (e.clientX - x) / width * 12; this.applySpan(value > 11.2 ? 12 : value); } // full width is easy to hit again
     }, () => {});
+  }
+  /** The rotation handle: turns the item around its center. Snaps to straight angles (every 45°) when close; Shift turns in 15° steps. */
+  private turn(event: PointerEvent) {
+    const b = this.block(), el = this.element(); if (!b || !el || this.selection?.part) return;
+    const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const angle = (e: { clientX: number; clientY: number }) => Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const start = angle(event), base = b.rotate ?? 0;
+    const label = this.ui!.querySelector<HTMLElement>('.canvas-angle')!;
+    this.gesture(event, (e) => {
+      let value = base + angle(e) - start;
+      value = ((value + 540) % 360) - 180;
+      if (e.shiftKey) value = Math.round(value / 15) * 15;
+      else { const straight = Math.round(value / 45) * 45; if (Math.abs(value - straight) < 3) value = straight; }
+      value = Math.round(value * 10) / 10;
+      if (value === -180) value = 180;
+      b.rotate = value || undefined;
+      el.style.setProperty('--rot', `${value}deg`); el.toggleAttribute('data-rotate', !!value);
+      label.hidden = false; label.textContent = `${Math.round(value)}°`;
+      this.position();
+    }, () => { label.hidden = true; });
   }
   /** Side handles: the left one changes the width keeping the right edge in place; top and bottom change the height.
    * Pulling the top edge keeps the bottom edge in place (the item grows upwards). */

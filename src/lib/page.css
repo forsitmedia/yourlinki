@@ -564,3 +564,6 @@ html.canvas-editing .deco { pointer-events: auto; }
 .page .stack .social[data-icon-style="outline"] a { background: transparent; border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .page .stack .social[data-icon-style="none"] a { background: transparent; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .page .stack .social[data-icon-style="none"] img, .page .stack .social[data-icon-style="none"] svg { width: 28px; height: 28px; }
+
+/* Turn chosen per item (layout editor's rotation handle). */
+.stack [data-rotate] { rotate: var(--rot, 0deg); }

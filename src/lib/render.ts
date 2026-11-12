@@ -126,6 +126,8 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
   if (dx || dy) { styles.push(`--dx:${Math.round(dx ?? 0)}px;--dy:${Math.round(dy ?? 0)}px`); extra += ' data-free'; }
+  const turn = bounded(block.rotate, -180, 180);
+  if (turn) { styles.push(`--rot:${Math.round(turn * 10) / 10}deg`); extra += ' data-rotate'; }
   if (block.cardStyle) extra += ` data-card="${esc(block.cardStyle)}"`;
   if (block.type === 'profile' && cfg) {
     const size = bounded(cfg.profile.photoSize, 48, 180);

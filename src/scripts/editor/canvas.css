@@ -34,3 +34,8 @@ html.canvas-editing .social:has(.canvas-part-selected):hover { outline: none; }
 .canvas-ghost { position: fixed !important; z-index: 140; pointer-events: none !important; opacity: .85; margin: 0 !important; box-shadow: 0 12px 30px #0003; max-height: 260px; overflow: hidden; border-radius: 12px; }
 .canvas-source { opacity: .25; }
 @media (pointer: coarse) { .canvas-ui :is(.canvas-drag, .canvas-edit) { height: 34px; } .canvas-ui .canvas-drag { width: 38px; } .canvas-ui :is(.canvas-resize, .canvas-side) { width: 18px; height: 18px; } }
+
+/* Rotation handle below the selection, and the angle while turning. */
+.canvas-ui .canvas-rotate { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, calc(100% + 16px)); width: 26px; height: 26px; border-radius: 50%; background: #fff; color: #007aff; border: 2px solid #007aff; font: 700 14px/1 system-ui; touch-action: none; cursor: grab; box-shadow: 0 1px 4px #0003; }
+.canvas-ui .canvas-rotate:active { cursor: grabbing; }
+.canvas-angle { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, calc(100% + 48px)); padding: 2px 7px; border-radius: 6px; background: #8b3dff; color: #fff; font: 600 11px/1.5 system-ui; pointer-events: none; }
