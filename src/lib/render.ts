@@ -40,8 +40,9 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'name') blocks.push(`<section class="name-block" ${data}>${identity(cfg)}</section>`);
     if (block.type === 'profile') blocks.push(`<section class="profile-block${photo ? '' : ' no-photo'}${cfg.profile.showCover !== false && (cfg.look.template === 'cover' || safeImg(cfg.profile.cover)) ? ' has-cover' : ''}${cfg.profile.showCover !== false && safeImg(cfg.profile.cover) && ['photo', 'studio'].includes(cfg.look.template) ? ' has-independent-cover' : ''}" ${data}>${hero(cfg, photo)}</section>`);
     if (block.type === 'bio' && cfg.profile.bio) blocks.push(bio(cfg, data));
-    if (block.type === 'highlights') blocks.push(highlights(cfg, data));
-    if (block.type === 'social') blocks.push(social(cfg, data + (block.vertical ? ' data-vertical' : '')));
+    if (block.type === 'highlights') blocks.push(highlights(cfg, data + (block.part ? ' data-part' : ''), block.part));
+    if (block.type === 'social') blocks.push(social(cfg, data + (block.vertical ? ' data-vertical' : '') + (block.part ? ' data-part' : ''), block.part));
+    if (block.type === 'text' && block.title?.trim()) blocks.push(textBlock(block, data));
     if (block.type === 'youtube') blocks.push(video(block, data));
     if (block.type === 'image') blocks.push(imageBlock(block, data));
     if (block.type === 'post') blocks.push(postCard(block, data));
@@ -124,13 +125,20 @@ function bio(cfg: Config, data: string): string {
     : `<p class="bio glass" ${data}>${esc(cfg.profile.bio)}</p>`;
 }
 
-function highlights(cfg: Config, data: string): string {
-  const items = cfg.highlights.filter((h) => h.value || h.label);
+/** A free text item: a title, subtitle, paragraph or small label. Line breaks are kept. */
+function textBlock(block: PageBlock, data: string): string {
+  const style = block.textStyle ?? 'body';
+  const tag = style === 'title' ? 'h2' : style === 'subtitle' ? 'h3' : 'p';
+  return `<${tag} class="text-block text-${style}"${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}>${esc(block.title!.trim())}</${tag}>`;
+}
+
+function highlights(cfg: Config, data: string, part?: string): string {
+  const items = cfg.highlights.filter((h, i) => (h.value || h.label) && (part === undefined || String(i) === part));
   return items.length ? `<div class="stats" ${data}>${items.map((h) => `<div><b>${esc(h.value)}</b><span>${esc(h.label)}</span></div>`).join('')}</div>` : '';
 }
 
-function social(cfg: Config, data: string): string {
-  const items = cfg.social.map((s, i) => ({ ...s, id: socialKey(s, i) })).filter((s) => safeUrl(s.url));
+function social(cfg: Config, data: string, part?: string): string {
+  const items = cfg.social.map((s, i) => ({ ...s, id: socialKey(s, i) })).filter((s) => safeUrl(s.url) && (part === undefined || s.id === part));
   if (!items.length) return '';
   return `<nav class="social" aria-label="Social profiles" ${data}>${items.map((s) => {
     const p = platform(s.platform);

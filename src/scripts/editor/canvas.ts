@@ -1,6 +1,7 @@
 import type { Config, PageBlock } from '../../lib/types';
 import { safeImg } from '../../lib/types';
-import { LayoutHistory, bounded, designStyle, dropTarget, moveBlock, separateName, sizeTier, type BlockRect } from '../../lib/layout';
+import { LayoutHistory, bounded, designStyle, dropTarget, moveBlock, separateName, separateGroup, sizeTier, type BlockRect } from '../../lib/layout';
+import { TEXT_STYLE_OPTIONS } from './block-editor';
 import { NAME_ALIGN, FONT_IDS, type FontId } from '../../lib/types';
 import { FONTS } from '../../lib/look';
 import { imageFrameStyle, normalizeImageFrame } from '../../lib/image-frame';
@@ -48,7 +49,7 @@ export class VisualCanvas {
     ui.querySelector('.canvas-resize')!.addEventListener('pointerdown', (e) => this.resize(e as PointerEvent));
     ui.querySelector('.canvas-resize')!.addEventListener('dblclick', () => this.resetSize());
     ui.querySelector('.canvas-edit')!.addEventListener('click', () => this.editSelection());
-    const socialStarts = [...doc.querySelectorAll<HTMLElement>('[data-social-id]')].map((el) => {
+    const socialStarts = [...doc.querySelectorAll<HTMLElement>('.social:not([data-part]) [data-social-id]')].map((el) => {
       const start = (e: PointerEvent) => {
         if (!this.enabled || this.busy || (e.pointerType === 'mouse' && e.button !== 0)) return;
         this.select({ id: el.closest<HTMLElement>('[data-block-id]')!.dataset.blockId!, socialId: el.dataset.socialId });
@@ -62,7 +63,7 @@ export class VisualCanvas {
     const press = (e: PointerEvent) => {
       if (!this.enabled || this.busy || (e.pointerType === 'mouse' && e.button !== 0)) return;
       const target = e.target as HTMLElement;
-      if (!target?.closest || target.closest('.canvas-ui, [data-social-id]')) return;
+      if (!target?.closest || target.closest('.canvas-ui, .social:not([data-part]) [data-social-id]')) return;
       const block = target.closest<HTMLElement>('[data-block-id]');
       if (!block) return;
       pressToDrag(e, () => {
@@ -81,7 +82,7 @@ export class VisualCanvas {
       const block = target.closest<HTMLElement>('[data-block-id]');
       if (!block) { this.select(null); return; }
       const part = target.closest<HTMLElement>('[data-profile-part]')?.dataset.profilePart as Selection['part'];
-      const socialId = target.closest<HTMLElement>('[data-social-id]')?.dataset.socialId;
+      const socialId = block.hasAttribute('data-part') ? undefined : target.closest<HTMLElement>('[data-social-id]')?.dataset.socialId;
       this.select({ id: block.dataset.blockId!, ...(part ? { part } : {}), ...(socialId ? { socialId } : {}) });
     };
     const key = (e: KeyboardEvent) => {
@@ -154,7 +155,7 @@ export class VisualCanvas {
     if (this.selection?.part === 'photo') return 'Photo or logo';
     if (this.selection?.part === 'name') return 'Name';
     if (b.type === 'link') return cfg.links.find((l) => l.id === b.linkId)?.title || 'Link';
-    return b.title || ({ profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview' }[b.type]);
+    return b.title || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text' }[b.type]);
   }
   private image() {
     const cfg = this.o.config(), b = this.block();
@@ -180,7 +181,7 @@ export class VisualCanvas {
   }
   private applySpan(value: number) {
     const b = this.block(), el = this.element(); if (!b || !el) return;
-    b.design = { span: Math.round(bounded(value, 4, 12) ?? 12), align: b.design?.align ?? 'auto' };
+    b.design = { span: Math.round(bounded(value, 2, 12) ?? 12), align: b.design?.align ?? 'auto' };
     el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
     const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size; // text scales live while resizing
     this.position();
@@ -246,7 +247,7 @@ export class VisualCanvas {
       ? target?.classList.contains('avatar')
         ? this.range('Logo size', this.o.config().profile.photoSize ?? target.clientWidth, 48, 180, 1, (v) => this.setProfileSize(v, true), (v) => `${v}px`)
         : this.range(this.selection?.part === 'photo' ? 'Photo height' : 'Cover height', this.o.config().profile.coverHeight ?? target?.clientHeight ?? 184, 100, 540, 1, (v) => this.setProfileSize(v, false), (v) => `${v}px`)
-      : this.range('Item width', this.span(), 4, 12, 1, (v) => this.applySpan(v), (v) => `${Math.round(v / 12 * 100)}%`);
+      : this.range('Item width', this.span(), 2, 12, 1, (v) => this.applySpan(v), (v) => `${Math.round(v / 12 * 100)}%`);
     const width = h('div', { class: 'canvas-widths' }, [ { label: 'Full', span: 12 }, { label: 'Half', span: 6 }, { label: 'Third', span: 4 } ].map((o) => h('button', { type: 'button', class: this.span() === o.span ? 'on' : '', onclick: () => this.action(() => this.applySpan(o.span)) }, o.label)));
     const details = h('details', { class: 'canvas-details', open: this.detailsOpen, ontoggle: (e: Event) => { this.detailsOpen = (e.target as HTMLDetailsElement).open; } }, h('summary', {}, 'More design options'),
       segmented([{ value: 'auto', label: 'Flow' }, { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }], b.design?.align ?? 'auto', (align) => this.action(() => { b.design = { span: this.span(), align }; this.applySpan(b.design.span); })),
@@ -292,8 +293,21 @@ export class VisualCanvas {
           onclick: () => this.action(() => { link.tile = { ...link.tile, shape: p.shape }; this.applySpan(p.span); }),
         }, h('span', { class: `tile-preset-icon preset-${p.label.toLowerCase()}`, 'aria-hidden': 'true' }), p.label))),
         h('p', { style: 'margin-top:10px' }, 'Image style'), tileStylePicker(link, this.o.config().look.template, (change) => this.action(change), false)) : null;
+    // Groups (social icons, highlights) can be taken apart so each piece is placed on its own, and put back together.
+    const group = b.type === 'social' || b.type === 'highlights' ? b.type : null;
+    const groupControls = group ? h('div', { class: 'canvas-shapes' },
+      h('p', {}, group === 'social' ? 'Icons as separate items' : 'Numbers as separate items'),
+      h('button', { type: 'button', class: 'canvas-reset', onclick: () => {
+        const apart = !b.part;
+        this.action(() => separateGroup(this.o.config(), group, apart));
+        this.select({ id: this.o.config().blocks.find((x) => x.type === group)!.id });
+      } }, b.part ? (group === 'social' ? 'Put the icons back in one row' : 'Put the numbers back together') : (group === 'social' ? 'Separate the icons' : 'Separate the numbers'))) : null;
+    const textStyle = b.type === 'text' ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Text style'),
+      segmented(TEXT_STYLE_OPTIONS, b.textStyle ?? 'body', (v) => this.action(() => { b.textStyle = v; })),
+      h('p', { style: 'margin-top:10px' }, 'Alignment'),
+      segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), b.textAlign ?? 'center', (v) => this.action(() => { b.textAlign = v; }))) : null;
     const textControls = h('div', { class: 'canvas-text-controls' }, ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset]));
-    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(b.type === 'social' ? [this.socialPicker(), h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
+    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
           el.toggleAttribute('data-vertical', !!b.vertical);

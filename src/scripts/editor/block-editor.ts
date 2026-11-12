@@ -1,5 +1,5 @@
 import { platform } from '../../lib/platforms';
-import { safeImg, withScheme, NAME_ALIGN } from '../../lib/types';
+import { safeImg, withScheme, NAME_ALIGN, type PageBlock, type TextStyle } from '../../lib/types';
 import { separateName, hasSeparateName } from '../../lib/layout';
 import { imageFrameStyle } from '../../lib/image-frame';
 import { moveSocial, socialKey } from '../../lib/social-order';
@@ -9,7 +9,7 @@ import { state, changed, onChange, uid } from './state';
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
 import { linkSheet, socialSheet, mediaSheet, postSheet } from './sheets';
-import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast } from './ui';
+import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast, dangerRow } from './ui';
 
 export function editPageBlock(id: string) {
   const { cfg } = state;
@@ -18,8 +18,9 @@ export function editPageBlock(id: string) {
   if (block.type === 'link') { const link = cfg.links.find((l) => l.id === block.linkId); if (link) linkSheet(link); return; }
   if (block.type === 'youtube' || block.type === 'image') return mediaSheet(block);
   if (block.type === 'post') return postSheet(block);
+  if (block.type === 'text') return textSheet(block);
   if (block.type === 'name') return editPageBlock(cfg.blocks.find((b) => b.type === 'profile')!.id); // the name is edited with the profile
-  const titles = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
+  const titles: Record<string, string> = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
   const body = h('div');
   const build = () => h('div', {},
     block.type === 'profile' ? profileGroup() :
@@ -142,6 +143,39 @@ export function addMediaItem(type: 'youtube' | 'image' | 'post') {
   state.cfg.blocks.push(block); changed(true);
   if (type === 'post') postSheet(block, true); else mediaSheet(block, true);
 }
+export const TEXT_STYLE_OPTIONS: { value: TextStyle; label: string }[] = [
+  { value: 'title', label: 'Title' }, { value: 'subtitle', label: 'Subtitle' }, { value: 'body', label: 'Text' }, { value: 'small', label: 'Label' }];
+
+/** A free text item. Any number of them can be added and placed anywhere. */
+export function textSheet(block: PageBlock, isNew = false) {
+  const cfg = state.cfg;
+  let deleted = false;
+  const body = h('div');
+  const draw = () => body.replaceChildren(
+    group({ footer: 'Line breaks are kept. Size, font and spacing can be changed on the page in Edit layout.' },
+      textareaRow(block.title ?? '', (v) => { block.title = v; changed(); }, 'Write anything: a heading, a note, a quote…', 600)),
+    group({ header: 'Style' }, h('div', { class: 'row stacked' }, segmented(TEXT_STYLE_OPTIONS, block.textStyle ?? 'body', (v) => { block.textStyle = v; changed(); }))),
+    group({ header: 'Alignment' }, h('div', { class: 'row stacked' }, segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), block.textAlign ?? 'center', (v) => { block.textAlign = v; changed(); }))),
+    group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
+    group({}, dangerRow('Delete Text', () => {
+      if (!isNew && !confirm('Delete this text?')) return;
+      deleted = true;
+      cfg.blocks = cfg.blocks.filter((b) => b.id !== block.id);
+      close();
+    })));
+  draw();
+  const close = sheet(isNew ? 'New Text' : 'Edit Text', () => [body], { onClose: () => {
+    if (!deleted && isNew && !block.title?.trim()) state.cfg.blocks = state.cfg.blocks.filter((b) => b.id !== block.id);
+    changed(true);
+  } });
+  setTimeout(() => body.querySelector('textarea')?.focus(), 50);
+}
+export function addTextItem() {
+  const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
+  state.cfg.blocks.push(block); changed(true);
+  textSheet(block, true);
+}
+
 export function addItemMenu() {
   const close = sheet('Add Item', () => [
     group({ footer: 'Arrange and resize items directly on your page.' },
@@ -150,6 +184,7 @@ export function addItemMenu() {
         const link = { id: uid(), title: '', url: '' };
         state.cfg.links.push(link); state.cfg.blocks.push({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
       } }),
+      navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
       navRow({ lead: svg('post'), title: 'Post Preview', subtitle: 'Cover, title and excerpt', onClick: () => { close(); addMediaItem('post'); } }),
       navRow({ lead: svg('play'), title: 'YouTube Video', subtitle: 'Automatic cover and video player', onClick: () => { close(); addMediaItem('youtube'); } }),
       navRow({ lead: svg('photo'), title: 'Image', subtitle: 'A photo, artwork, or announcement', onClick: () => { close(); addMediaItem('image'); } })),

@@ -7,7 +7,7 @@ export type BlockDesign = { span: number; align: 'auto' | 'left' | 'center' | 'r
 export const bounded = (v: unknown, min: number, max: number) => typeof v === 'number' && Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : undefined;
 export function normalizeBlockDesign(value: any): BlockDesign | undefined {
   if (!value || typeof value !== 'object') return undefined;
-  return { span: Math.round(bounded(value.span, 4, 12) ?? 12), align: ['left', 'center', 'right'].includes(value.align) ? value.align : 'auto' };
+  return { span: Math.round(bounded(value.span, 2, 12) ?? 12), align: ['left', 'center', 'right'].includes(value.align) ? value.align : 'auto' };
 }
 export function designStyle(value?: BlockDesign): string {
   const d = normalizeBlockDesign(value);
@@ -92,3 +92,17 @@ export class LayoutHistory {
   end() { this.before = null; }
   cancel() { if (this.before) restore(this.config(), this.before); this.before = null; }
 }
+
+/** Shows a group's pieces as separate items (in the group's place), or puts them back together where the first piece is. */
+export function separateGroup(cfg: Config, type: 'social' | 'highlights', separate: boolean) {
+  const at = cfg.blocks.findIndex((b) => b.type === type);
+  if (at < 0) return;
+  const whole = cfg.blocks[at];
+  cfg.blocks = cfg.blocks.filter((b) => b.type !== type);
+  if (separate) {
+    const keys = type === 'social' ? cfg.social.map(socialKey) : cfg.highlights.map((_, i) => String(i));
+    cfg.blocks.splice(at, 0, ...keys.map((key): PageBlock => ({ id: `${type}:${key}`, type, part: key, ...(whole.hidden ? { hidden: true } : {}),
+      design: { span: Math.max(type === 'social' ? 2 : 4, Math.floor(12 / Math.max(1, keys.length))), align: 'auto' as const } })));
+  } else cfg.blocks.splice(at, 0, { id: type, type, ...(whole.hidden ? { hidden: true } : {}) });
+}
+export const isSeparated = (cfg: Config, type: 'social' | 'highlights') => cfg.blocks.some((b) => b.type === type && b.part);

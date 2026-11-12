@@ -420,7 +420,7 @@ p, .bio { text-wrap: pretty; }
 .template-photo .profile-block:has(> .hero):not(.has-independent-cover):has(+ .bio.tagline) > .identity { margin-bottom: 4px; }
 
 /* Text size chosen per item: the text grows or shrinks, pictures keep their size. */
-.stack [data-text-scale]:is(.bio, .stats, .row-link, .primary, .social),
+.stack [data-text-scale]:is(.bio, .stats, .row-link, .primary, .social, .text-block),
 .stack [data-text-scale] :is(.identity, .tile > span, .video-copy, .post-copy, .image-card > figcaption) { zoom: var(--text-scale, 1); }
 
 /* Tile shape chosen per link, like phone widgets (lib/tile-style.ts). It wins over the template's shape. */
@@ -439,3 +439,15 @@ p, .bio { text-wrap: pretty; }
 
 /* Social icons in a column, to sit beside a tile like a widget. */
 .page .social[data-vertical] { flex-direction: column; flex-wrap: nowrap; align-items: center; justify-content: center; align-self: center; }
+
+/* Text items (any number of them): four styles, centered unless aligned otherwise. */
+.text-block { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; text-align: center; color: var(--text); }
+.text-title { font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: -.022em; text-wrap: balance; }
+.text-subtitle { font-size: 19px; font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
+.text-body { font-size: 16px; line-height: 1.5; opacity: .82; }
+.text-small { font-size: 12px; font-weight: 600; line-height: 1.4; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.text-block[data-align="left"] { text-align: left; }
+.text-block[data-align="right"] { text-align: right; }
+/* One piece of a group on its own (a single icon or number) sits centered in its space. */
+.social[data-part] { justify-content: center; align-self: center; }
+.stats[data-part] { justify-content: center; align-self: center; }

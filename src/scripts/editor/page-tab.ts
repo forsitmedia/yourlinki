@@ -67,6 +67,9 @@ export function pageTab(): HTMLElement {
     if (b.type === 'profile') return { title: 'Profile', subtitle: extra('Photo, name & username'), icon: 'person', image: safeImg(cfg.profile.photo), hidden };
     if (b.type === 'name') return { title: 'Name', subtitle: extra([cfg.profile.name, cfg.profile.handle && '@' + cfg.profile.handle].filter(Boolean).join(' · ')), icon: 'text', hidden };
     if (b.type === 'bio') return { title: 'Bio', subtitle: extra(cfg.profile.bio || 'Add a few words about you'), icon: 'text', hidden };
+    if (b.type === 'text') return { title: b.title?.trim().split('\n')[0] || 'Text', subtitle: extra({ title: 'Title', subtitle: 'Subtitle', body: 'Text', small: 'Label' }[b.textStyle ?? 'body']), icon: 'text', hidden };
+    if (b.type === 'highlights' && b.part) { const x = cfg.highlights[Number(b.part)]; return { title: [x?.value, x?.label].filter(Boolean).join(' ') || 'Highlight', subtitle: extra('One highlight'), icon: 'star', hidden }; }
+    if (b.type === 'social' && b.part) { const s = cfg.social.find((s, i) => (s.id || `social:${i}`) === b.part); return { title: `${platform(s?.platform ?? '')?.label ?? 'Social'} icon`, subtitle: extra(s?.url.replace(/^(https?:\/\/|mailto:)/, '') ?? ''), icon: 'globe', hidden }; }
     if (b.type === 'highlights') return { title: 'Highlights', subtitle: extra(cfg.highlights.map((x) => [x.value, x.label].filter(Boolean).join(' ')).join(' · ') || 'Add your numbers'), icon: 'star', hidden };
     if (b.type === 'social') return { title: 'Social Icons', subtitle: extra(cfg.social.map((s) => platform(s.platform)?.label ?? s.platform).join(' · ') || 'Add your social profiles'), icon: 'globe', hidden };
     if (b.type === 'link') {

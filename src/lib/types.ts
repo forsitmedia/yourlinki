@@ -2,7 +2,7 @@ import defaults from '../../yourlinki.config.json';
 import { normalizeImageFrame, type ImageFrame } from './image-frame';
 import { bounded, normalizeBlockDesign, type BlockDesign } from './layout';
 import { normalizeButtonShape, normalizeButtonStyle, type ButtonShape, type ButtonStyle } from './button-shape';
-import { normalizeSocials } from './social-order';
+import { normalizeSocials, socialKey } from './social-order';
 import { normalizeTileStyle, type TileStyle } from './tile-style';
 
 export type Link = {
@@ -26,7 +26,12 @@ export type Template = typeof TEMPLATE_IDS[number];
 export type PageBlock = {
   id: string;
   design?: BlockDesign;
-  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post';
+  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text';
+  /** One piece of a group shown on its own: a social icon's key, or a highlight's position. */
+  part?: string;
+  /** Text items: how the words look, and where they line up. */
+  textStyle?: TextStyle;
+  textAlign?: NameAlign;
   linkId?: string;
   title?: string;
   description?: string;
@@ -66,6 +71,8 @@ export type Config = {
   stats?: string;
 };
 
+export const TEXT_STYLES = ['title', 'subtitle', 'body', 'small'] as const;
+export type TextStyle = typeof TEXT_STYLES[number];
 export const FONT_IDS = ['system', 'rounded', 'serif', 'mono', 'display'] as const;
 export type FontId = typeof FONT_IDS[number];
 export const NAME_ALIGN = ['left', 'center', 'right'] as const;
@@ -94,14 +101,16 @@ export function normalize(raw: any = {}): Config {
     highlights: list<Highlight>(c.highlights, (h) => h && typeof h.value === 'string').slice(0, 3),
     links,
     social: normalizeSocials(c.social),
-    blocks: normalizeBlocks(c.blocks, links),
+    blocks: normalizeBlocks(c.blocks, links, {
+      social: normalizeSocials(c.social).map(socialKey),
+      highlights: list<Highlight>(c.highlights, (h) => h && typeof h.value === 'string').slice(0, 3).map((_, i) => String(i)) }),
     look,
     ...(typeof c.stats === 'string' && /^https:\/\/[^\s"'<>]+$/.test(c.stats) ? { stats: c.stats.replace(/\/+$/, '') } : {}),
   };
 }
 
 /** Old pages keep their existing arrangement; saved block order is never sorted by style. */
-function normalizeBlocks(raw: unknown, links: Link[]): PageBlock[] {
+function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]; highlights: string[] }): PageBlock[] {
   const fixed = ['profile', 'highlights', 'bio', 'social'] as const;
   const linkBlock = (l: Link): PageBlock => ({ id: `link:${l.id}`, type: 'link', linkId: l.id });
   if (!Array.isArray(raw)) {
@@ -117,6 +126,7 @@ function normalizeBlocks(raw: unknown, links: Link[]): PageBlock[] {
   const ids = new Set<string>();
   const singles = new Set<string>();
   const linked = new Set<string>();
+  const parts = new Set<string>(); // 'social:<key>' or 'highlights:<n>': pieces of a group placed on their own
   const add = (block: PageBlock) => {
     let id = block.id;
     while (ids.has(id)) id += '-copy';
@@ -130,7 +140,16 @@ function normalizeBlocks(raw: unknown, links: Link[]): PageBlock[] {
     const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120);
     const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
       ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}) };
-    if (fixed.includes(b.type) || b.type === 'name') { // the name is optional: it exists only when moved apart from the profile
+    if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
+      const key = `${b.type}:${b.part}`;
+      if (singles.has(b.type) || parts.has(key)) continue;
+      parts.add(key);
+      add({ id, type: b.type, part: b.part, hidden: !!b.hidden, ...layout, ...(b.vertical === true ? { vertical: true } : {}) });
+    } else if (b.type === 'text') {
+      add({ id, type: 'text', ...layout, title: typeof b.title === 'string' ? b.title : '', hidden: !!b.hidden,
+        ...(TEXT_STYLES.includes(b.textStyle) ? { textStyle: b.textStyle } : {}), ...(NAME_ALIGN.includes(b.textAlign) ? { textAlign: b.textAlign } : {}) });
+    } else if (fixed.includes(b.type) || b.type === 'name') {
+      if ([...parts].some((k) => k.startsWith(b.type + ':'))) continue; // already shown piece by piece // the name is optional: it exists only when moved apart from the profile
       if (singles.has(b.type)) continue;
       singles.add(b.type);
       add({ id, type: b.type, hidden: !!b.hidden, ...layout, ...(b.type === 'social' && b.vertical === true ? { vertical: true } : {}) });
@@ -144,6 +163,14 @@ function normalizeBlocks(raw: unknown, links: Link[]): PageBlock[] {
         ...(b.type === 'youtube' && ['landscape', 'wide', 'square'].includes(b.videoAspect) ? { videoAspect: b.videoAspect } : {}),
         ...(b.imageFrame ? { imageFrame: normalizeImageFrame(b.imageFrame) } : {}) });
     }
+  }
+  // A group shown piece by piece stays complete: pieces that no longer exist go, new ones are added after the others.
+  for (const type of ['social', 'highlights'] as const) {
+    if (![...parts].some((k) => k.startsWith(type + ':'))) continue;
+    const valid = new Set(pieces[type]);
+    for (let i = result.length - 1; i >= 0; i--) if (result[i].type === type && result[i].part && !valid.has(result[i].part!)) result.splice(i, 1);
+    for (const key of pieces[type]) if (!parts.has(`${type}:${key}`)) { parts.add(`${type}:${key}`); add({ id: `${type}:${key}`, type, part: key }); }
+    singles.add(type);
   }
   for (const type of fixed) if (!singles.has(type)) add({ id: type, type });
   for (const l of links) if (!linked.has(l.id)) add(linkBlock(l));
