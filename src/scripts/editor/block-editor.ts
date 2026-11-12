@@ -8,6 +8,7 @@ import { socialGlyph } from './social-glyph';
 import { state, changed, onChange, uid } from './state';
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
+import { BOLD } from '../../lib/render';
 import { linkSheet, socialSheet, mediaSheet, postSheet } from './sheets';
 import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast, dangerRow } from './ui';
 
@@ -144,20 +145,52 @@ export function addMediaItem(type: 'youtube' | 'image' | 'post') {
   state.cfg.blocks.push(block); changed(true);
   if (type === 'post') postSheet(block, true); else mediaSheet(block, true);
 }
-/** B / I / U / S buttons over a text box: they wrap the selected words in marks (see rich() in render.ts), or remove them. */
+/** How each mark is written (the same rules as rich() in render.ts). A single * never counts as half of a **. */
+const MARKS: Record<string, RegExp> = {
+  '**': BOLD,
+  '*': /\*(.+?)\*/gs, // read after bold is set aside, like the page does
+  '__': /__(.+?)__/gs,
+  '~~': /~~(.+?)~~/gs,
+};
+/** The marked span of this kind that holds the selection (or the cursor), if any. */
+function markAround(value: string, mark: string, a: number, b: number) {
+  const text = mark === '*' ? value.replace(BOLD, (m) => '\u0001\u0001' + m.slice(2, -2) + '\u0001\u0001') : value; // same length, bold stars hidden
+  for (const m of text.matchAll(MARKS[mark])) {
+    const start = m.index!, end = start + m[0].length;
+    if (a >= start && b <= end) return { start, end, inner: value.slice(start + mark.length, end - mark.length) };
+  }
+  return null;
+}
+
+/** B / I / U / S buttons over a text box. Each works like a switch: on plain words it adds the style,
+ * inside styled words (selected with or without the marks) it takes the style away. */
 export function formatBar(area: HTMLElement) {
   const box = area.querySelector('textarea')!;
-  const wrap = (mark: string) => {
+  const toggle = (mark: string) => {
     const { selectionStart: a, selectionEnd: b, value } = box;
-    const before = value.slice(0, a), picked = value.slice(a, b), after = value.slice(b);
-    const marked = before.endsWith(mark) && after.startsWith(mark);
-    if (marked) { box.value = before.slice(0, -mark.length) + picked + after.slice(mark.length); box.setSelectionRange(a - mark.length, b - mark.length); }
-    else { box.value = before + mark + (picked || 'text') + mark + after; box.setSelectionRange(a + mark.length, a + mark.length + (picked || 'text').length); }
+    const found = markAround(value, mark, a, b);
+    if (found) {
+      box.value = value.slice(0, found.start) + found.inner + value.slice(found.end);
+      box.setSelectionRange(found.start, found.start + found.inner.length);
+    } else {
+      const picked = (mark === '*' ? value.slice(a, b) : value.slice(a, b).replace(MARKS[mark], '$1')) || 'text'; // no styles inside the same style
+      box.value = value.slice(0, a) + mark + picked + mark + value.slice(b);
+      box.setSelectionRange(a + mark.length, a + mark.length + picked.length);
+    }
     box.focus();
     box.dispatchEvent(new Event('input', { bubbles: true }));
+    refresh();
   };
-  const button = (mark: string, label: string, title: string, style: string) => h('button', { type: 'button', class: 'format-button', title, 'aria-label': title, style,
-    onmousedown: (e: Event) => e.preventDefault(), onclick: () => wrap(mark) }, label);
+  const buttons = new Map<string, HTMLElement>();
+  const button = (mark: string, label: string, title: string, style: string) => {
+    const el = h('button', { type: 'button', class: 'format-button', title, 'aria-label': title, 'aria-pressed': 'false', style,
+      onmousedown: (e: Event) => e.preventDefault(), onclick: () => toggle(mark) }, label);
+    buttons.set(mark, el);
+    return el;
+  };
+  /** A button lights up while the cursor is inside text with its style. */
+  const refresh = () => buttons.forEach((el, mark) => el.setAttribute('aria-pressed', String(!!markAround(box.value, mark, box.selectionStart, box.selectionEnd))));
+  ['select', 'keyup', 'click', 'input', 'focus'].forEach((type) => box.addEventListener(type, refresh));
   return h('div', { class: 'format-bar' },
     button('**', 'B', 'Bold', 'font-weight:700'), button('*', 'I', 'Italic', 'font-style:italic;font-family:Georgia,serif'),
     button('__', 'U', 'Underline', 'text-decoration:underline'), button('~~', 'S', 'Crossed out', 'text-decoration:line-through'),

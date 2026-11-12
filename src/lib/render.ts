@@ -15,12 +15,14 @@ const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** Simple marks people can type or add with the editor's buttons: **bold**, *italic*, __underline__, ~~crossed out~~. */
+/** `***both***` reads as italic around bold: bold never takes a third star. */
+export const BOLD = /\*\*(?!\*)(.+?)(?<!\*)\*\*/gs;
 export function rich(text: string): string {
   return esc(text)
-    .replace(/\*\*(.+?)\*\*/gs, '<strong>$1</strong>')
+    .replace(BOLD, '<strong>$1</strong>')
     .replace(/__(.+?)__/gs, '<u>$1</u>')
     .replace(/~~(.+?)~~/gs, '<s>$1</s>')
-    .replace(/\*(.+?)\*/gs, '<em>$1</em>');
+    .replace(/\*(.+?)\*/gs, '<em>$1</em>'); // the stars left after bold are italic
 }
 /** The same text without the marks, for places that can't show them (search results, link previews). */
 export const plain = (text: string) => text.replace(/\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(.+?)\*/gs, (_, a, b, c, d) => a ?? b ?? c ?? d);

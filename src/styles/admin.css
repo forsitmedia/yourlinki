@@ -519,7 +519,7 @@ button.row:active { transition-duration: 0s; }
 /* Bold / italic / underline / crossed-out buttons over text boxes. */
 .format-bar { display: flex; align-items: center; gap: 6px; width: 100%; }
 .format-button { width: 36px; height: 32px; border-radius: 8px; background: var(--fill); color: var(--text, inherit); font-size: 15px; }
-.format-button:active { background: var(--blue); color: #fff; }
+.format-button:active, .format-button[aria-pressed="true"] { background: var(--blue); color: #fff; }
 .format-hint { margin-left: auto; font-size: 11px; color: var(--sec); }
 
 .cred-entry-actions { display: flex; gap: 14px; justify-content: flex-end; }
