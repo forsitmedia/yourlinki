@@ -23,6 +23,7 @@ export function editPageBlock(id: string) {
   if (block.type === 'text') return textSheet(block);
   if (block.type === 'credentials') return credentialsSheet(block);
   if (block.type === 'shape') return shapeSheet(block);
+  if (block.type === 'space') { if (confirm('Remove this empty space?')) { cfg.blocks = cfg.blocks.filter((b) => b.id !== id); changed(true); } return; }
   if (block.type === 'name') return editPageBlock(cfg.blocks.find((b) => b.type === 'profile')!.id); // the name is edited with the profile
   const titles: Record<string, string> = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
   const body = h('div');

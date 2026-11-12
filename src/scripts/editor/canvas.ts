@@ -208,9 +208,34 @@ export class VisualCanvas {
   private lift(b: PageBlock, el: HTMLElement) {
     const stack = this.doc!.querySelector<HTMLElement>('.stack')!, width = stack.clientWidth;
     const left = el.offsetLeft + (b.dx ?? 0), top = el.offsetTop + (b.dy ?? 0) + (b.offset ?? 0);
+    // Nothing else moves: an empty space takes the item's place (striped in the editor, invisible on the page).
+    const cfg = this.o.config(), at = cfg.blocks.indexOf(b);
+    const space: PageBlock = { id: `space:${Math.random().toString(36).slice(2, 8)}`, type: 'space', height: Math.max(24, Math.round(el.offsetHeight)), ...(b.design ? { design: { ...b.design } } : {}) };
+    cfg.blocks.splice(at, 1, space); cfg.blocks.push(b); // a free item's place in the list doesn't matter
+    const placeholder = this.doc!.createElement('div');
+    placeholder.className = 'space'; placeholder.dataset.blockId = space.id; placeholder.setAttribute('data-height', '');
+    placeholder.style.cssText = `${el.style.gridColumn ? `grid-column:${el.style.gridColumn};` : ''}--h:${space.height}px`;
+    el.before(placeholder); // the item itself stays in the page while dragging (moving it would end the drag)
     b.float = { x: left / width * 100, y: top, w: el.offsetWidth / width * 100 };
     b.dx = undefined; b.dy = undefined; b.offset = undefined;
     this.applyFloat(b, el);
+  }
+  /** Puts every freely moved item back in the layout at the height it was left, removes empty spaces and Space above. */
+  private tidy() {
+    if (!confirm('Tidy up the layout?\n\nFreely moved items go back into the column at the height they are now, empty spaces are removed and "Space above" is reset. Sizes, fonts, colors and rotation stay. You can undo this.')) return;
+    const tops = new Map(this.elements().map((el) => [el.dataset.blockId!, el.getBoundingClientRect().top]));
+    this.action(() => {
+      const cfg = this.o.config();
+      const floating = cfg.blocks.filter((b) => b.float || b.dx || b.dy).sort((a, b) => (tops.get(a.id) ?? 0) - (tops.get(b.id) ?? 0));
+      cfg.blocks = cfg.blocks.filter((b) => b.type !== 'space' && !floating.includes(b));
+      for (const item of floating) {
+        const top = tops.get(item.id) ?? Infinity;
+        const at = cfg.blocks.findIndex((b) => (tops.get(b.id) ?? -Infinity) > top);
+        if (at < 0) cfg.blocks.push(item); else cfg.blocks.splice(at, 0, item);
+      }
+      for (const b of cfg.blocks) { b.float = undefined; b.dx = undefined; b.dy = undefined; b.offset = undefined; }
+    });
+    this.select(null);
   }
   /** A free item has its own width: the same share of the page as `span` columns. `keepRight` grows it to the left. */
   private floatSpan(b: PageBlock, el: HTMLElement, span: number, keepRight: boolean) {
@@ -264,7 +289,7 @@ export class VisualCanvas {
     if (this.selection?.part === 'photo') return 'Photo or logo';
     if (this.selection?.part === 'name') return 'Name';
     if (b.type === 'link') return cfg.links.find((l) => l.id === b.linkId)?.title || 'Link';
-    return (b.title && plain(b.title).split('\n')[0]) || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials', shape: 'Shape' }[b.type]);
+    return (b.title && plain(b.title).split('\n')[0]) || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials', shape: 'Shape', space: 'Empty space' }[b.type]);
   }
   private image() {
     const cfg = this.o.config(), b = this.block();
@@ -331,6 +356,8 @@ export class VisualCanvas {
     const b = this.block(), el = this.element();
     if (!b || !el) {
       this.o.inspector.replaceChildren(tools, h('p', { class: 'canvas-help' }, 'Drag any item to move it (on a phone, press and hold first). Tap an item, then drag its corner to resize it; double-click the corner to reset.'),
+        h('button', { type: 'button', class: 'canvas-tidy', onclick: () => this.tidy() }, '✨ Tidy up layout'),
+        h('p', { class: 'canvas-help' }, 'Puts freely moved items back into a clean column, removes empty spaces and extra spacing.'),
         this.range('Page spacing', this.o.config().look.spacing ?? 18, 8, 36, 1, (v) => { this.o.config().look.spacing = v; this.doc?.body.style.setProperty('--page-gap', `${v}px`); }, (v) => `${v}px`),
         this.range('Side margins', this.o.config().look.margin ?? (['studio', 'bold'].includes(this.o.config().look.template) ? 24 : 20), 0, 60, 1, (v) => {
           this.o.config().look.margin = v; this.doc?.body.style.setProperty('--page-margin', `${v}px`); this.doc?.body.setAttribute('data-margin', '');
@@ -347,6 +374,12 @@ export class VisualCanvas {
           h('button', { type: 'button', disabled: position >= this.socialElements().length - 1, 'aria-label': 'Move icon right', onclick: () => this.nudgeSocial(1) }, '→')),
         this.socialPicker(),
         h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.select({ id: b.id }) }, 'Move or resize the whole icon row'));
+      return;
+    }
+    if (b.type === 'space') {
+      this.o.inspector.replaceChildren(tools,
+        h('p', { class: 'canvas-help' }, 'Empty space keeps room where an item used to be. Visitors don\'t see it. Stretch it from the top or bottom dot, or remove it.'),
+        h('button', { type: 'button', class: 'canvas-tidy', onclick: () => { this.action(() => { const cfg = this.o.config(); cfg.blocks = cfg.blocks.filter((x) => x.id !== b.id); }); this.select(null); } }, 'Remove this empty space'));
       return;
     }
     const image = this.image(), target = this.target();
@@ -435,7 +468,7 @@ export class VisualCanvas {
       cardPicker(b.cardStyle ?? (b.type === 'highlights' || b.type === 'text' || (b.type === 'bio' && el.classList.contains('tagline')) ? 'none' : 'glass'),
         (value) => this.action(() => { b.cardStyle = value; el.dataset.card = value; }))) : null;
     const free = b.float || b.dx || b.dy ? h('div', { class: 'canvas-free-info' },
-      h('span', {}, 'Placed freely: other items move around it.'),
+      h('span', {}, 'Placed freely: it stays exactly here, other items never push it.'),
       h('button', { type: 'button', onclick: () => this.action(() => { b.float = undefined; b.dx = undefined; b.dy = undefined; }) }, 'Put back in layout')) : null;
     const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
       b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);

@@ -40,7 +40,7 @@ export type Template = typeof TEMPLATE_IDS[number];
 export type PageBlock = {
   id: string;
   design?: BlockDesign;
-  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape';
+  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space';
   /** Shape items: which drawing, its colors, outline, rotation and motion. */
   deco?: { shape: string; color: string; outline?: boolean; rotate?: number; motion?: ShapeMotion; from?: string; to?: string };
   /** Social icons: glyph color ('brand' or #hex) and the circle behind each icon. */
@@ -192,6 +192,8 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
         kind: CREDENTIAL_KINDS.some((k) => k.value === e.kind) ? e.kind : 'degree', title: str(e.title, 120), org: str(e.org, 120), year: str(e.year, 30),
         ...(safeImg(e.logo) ? { logo: e.logo } : {}), ...(typeof e.url === 'string' && e.url ? { url: e.url.slice(0, 500) } : {}) }));
       add({ id, type: 'credentials', ...layout, title: str(b.title, 60), entries, hidden: !!b.hidden, ...(CREDENTIAL_LAYOUTS.includes(b.variant) ? { variant: b.variant } : {}) });
+    } else if (b.type === 'space') { // an empty placeholder (left where a freely moved item used to be)
+      add({ id, type: 'space', ...layout, height: layout.height ?? 40 });
     } else if (b.type === 'shape') {
       const d = b.deco && typeof b.deco === 'object' ? b.deco : {};
       const rotate = bounded(d.rotate, 0, 359);

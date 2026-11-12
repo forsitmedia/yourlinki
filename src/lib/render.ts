@@ -63,10 +63,15 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
   const attrs = (l: Link) => preview ? `href="${esc(safeUrl(l.url) || '#')}"`
     : `href="${esc(safeUrl(l.url) || '#')}" rel="noopener"${l.publishAt ? ` data-show-from="${esc(l.publishAt)}"` : ''}${l.expireAt ? ` data-show-until="${esc(l.expireAt)}"` : ''}`;
   const blocks: string[] = [];
-  let run: { link: Link; block: PageBlock }[] = [];
+  let run: { link: Link | null; block: PageBlock }[] = [];
   const flush = () => { if (run.length) blocks.push(linkList(run, attrs, cfg.look.template === 'gallery')); run = []; };
   for (const block of cfg.blocks) {
     if (block.hidden) continue;
+    // Empty space keeps its place, also between links (so a row of tiles keeps its shape).
+    if (block.type === 'space') {
+      if (run.length) run.push({ link: null, block }); else blocks.push(spaceBlock(block));
+      continue;
+    }
     if (block.type === 'link') {
       const link = cfg.links.find((l) => l.id === block.linkId);
       if (link && shown(link)) run.push({ link, block });
@@ -220,15 +225,19 @@ function social(cfg: Config, data: string, part?: string, color?: string): strin
 }
 
 /** Consecutive image links share a grid; every item keeps its chosen position. */
-function linkList(items: { link: Link; block: PageBlock }[], attrs: (l: Link) => string, photoBands = false): string {
+const spaceBlock = (block: PageBlock) => `<div class="space" aria-hidden="true" ${blockAttributes(block)}></div>`;
+
+function linkList(items: { link: Link | null; block: PageBlock }[], attrs: (l: Link) => string, photoBands = false): string {
   const runs: { style: string; items: typeof items }[] = [];
   for (const item of items) {
+    if (!item.link) { (runs.at(-1)?.items ?? (runs[runs.push({ style: 'rows', items: [] }) - 1].items)).push(item); continue; }
     const style = photoBands && safeImg(item.link.image) ? 'tiles' : item.link.featured ? 'featured' : safeImg(item.link.image) ? 'tiles' : 'rows';
     const last = runs.at(-1);
     if (last && last.style === style) last.items.push(item);
     else runs.push({ style, items: [item] });
   }
   return runs.map((run) => `<div class="${run.style === 'tiles' ? 'tiles' : 'rows'}">${run.items.map(({ link: l, block }) => {
+    if (!l) return spaceBlock(block);
     const data = blockAttributes(block);
     const shape = normalizeButtonShape(l.buttonShape);
     const fill = normalizeButtonStyle(l.buttonStyle);
