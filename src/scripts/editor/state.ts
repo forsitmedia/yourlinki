@@ -1,3 +1,4 @@
+import type { PageBlock } from '../../lib/types';
 /** Editor state: the config being edited, change notifications, the browser draft and publishing. */
 import { normalize, type Config } from '../../lib/types';
 import { CONFIG_ID, renderPage } from '../../lib/render';
@@ -123,3 +124,11 @@ export async function discardDraft() {
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 8);
+
+/** Where new items go: right after the selected item, or after the one in view in the layout editor (set by the canvas). */
+let anchor: () => string | null | undefined = () => null;
+export const setAnchor = (fn: typeof anchor) => { anchor = fn; };
+export function placeBlock(block: PageBlock) {
+  const at = state.cfg.blocks.findIndex((b) => b.id === anchor());
+  if (at < 0) state.cfg.blocks.push(block); else state.cfg.blocks.splice(at + 1, 0, block);
+}

@@ -1,4 +1,4 @@
-import { lookVars, lookColors, themeColorMeta, FONTS } from './look';
+import { lookVars, lookColors, themeColorMeta, FONTS, fontLink } from './look';
 import { imageFrameStyle } from './image-frame';
 import { normalizeButtonShape, normalizeButtonStyle } from './button-shape';
 import { tileAttributes, tileTextStyle } from './tile-style';
@@ -18,15 +18,38 @@ const esc = (v: unknown) =>
 /** Simple marks people can type or add with the editor's buttons: **bold**, *italic*, __underline__, ~~crossed out~~. */
 /** `***both***` reads as italic around bold: bold never takes a third star. */
 export const BOLD = /\*\*(?!\*)(.+?)(?<!\*)\*\*/gs;
+export const LINK = /\[([^\]\n]+)\]\(([^)\s]+)\)/g;
 export function rich(text: string): string {
-  return esc(text)
+  // Links ([words](address)) are set aside first, so marks never reach inside an address.
+  const links: string[] = [];
+  const marked = esc(text.replace(LINK, (_, label: string, url: string) => {
+    const href = safeUrl(url);
+    links.push(href ? `<a class="text-link" href="${esc(href)}" rel="noopener">${esc(label)}</a>` : esc(label));
+    return `\u0002${links.length - 1}\u0002`;
+  }))
     .replace(BOLD, '<strong>$1</strong>')
     .replace(/__(.+?)__/gs, '<u>$1</u>')
     .replace(/~~(.+?)~~/gs, '<s>$1</s>')
     .replace(/\*(.+?)\*/gs, '<em>$1</em>'); // the stars left after bold are italic
+  return marked.replace(/\u0002(\d+)\u0002/g, (_, i) => links[Number(i)]);
+}
+/** Text items: like rich(), plus lists. Lines starting with "- " or "• " become bullets, "1. " numbers. */
+export function richBlock(text: string): string {
+  const out: string[] = [];
+  let para: string[] = [], list: { tag: 'ul' | 'ol'; items: string[] } | null = null;
+  const flushPara = () => { if (para.length) out.push(`<span class="text-para">${rich(para.join('\n'))}</span>`); para = []; };
+  const flushList = () => { if (list) out.push(`<${list.tag}>${list.items.map((i) => `<li>${rich(i)}</li>`).join('')}</${list.tag}>`); list = null; };
+  for (const line of text.split('\n')) {
+    const bullet = line.match(/^\s*[-•]\s+(.*)$/), number = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    const tag = bullet ? 'ul' : number ? 'ol' : null;
+    if (tag) { flushPara(); if (list && list.tag !== tag) flushList(); list ??= { tag, items: [] }; list.items.push((bullet ?? number)![1]); }
+    else { flushList(); para.push(line); }
+  }
+  flushPara(); flushList();
+  return out.join('');
 }
 /** The same text without the marks, for places that can't show them (search results, link previews). */
-export const plain = (text: string) => text.replace(/\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(.+?)\*/gs, (_, a, b, c, d) => a ?? b ?? c ?? d);
+export const plain = (text: string) => text.replace(LINK, '$1').replace(/\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(.+?)\*/gs, (_, a, b, c, d) => a ?? b ?? c ?? d);
 
 /** One renderer for the public page and the editor's live preview.
  * The public page is a single static file: it embeds its own config, so the editor can reopen it,
@@ -55,7 +78,7 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'profile') blocks.push(`<section class="profile-block${photo ? '' : ' no-photo'}${cfg.profile.showCover !== false && (cfg.look.template === 'cover' || safeImg(cfg.profile.cover)) ? ' has-cover' : ''}${cfg.profile.showCover !== false && safeImg(cfg.profile.cover) && ['photo', 'studio'].includes(cfg.look.template) ? ' has-independent-cover' : ''}" ${data}>${hero(cfg, photo)}</section>`);
     if (block.type === 'bio' && cfg.profile.bio) blocks.push(bio(cfg, data));
     if (block.type === 'highlights') blocks.push(highlights(cfg, data + (block.part ? ' data-part' : ''), block.part));
-    if (block.type === 'social') blocks.push(social(cfg, data + (block.vertical ? ' data-vertical' : '') + (block.part ? ' data-part' : ''), block.part));
+    if (block.type === 'social') blocks.push(social(cfg, data + (block.vertical ? ' data-vertical' : '') + (block.part ? ' data-part' : '') + (block.iconStyle ? ` data-icon-style="${esc(block.iconStyle)}"` : '') + (block.iconColor ? ' data-icon-color' : ''), block.part, block.iconColor));
     if (block.type === 'text' && block.title?.trim()) blocks.push(textBlock(block, data));
     if (block.type === 'credentials') blocks.push(credentials(block, data));
     if (block.type === 'shape') blocks.push(`<div class="deco"${block.deco?.motion ? ` data-motion="${esc(block.deco.motion)}"` : ''} ${data}>${shapeSvg(block.deco ?? {}, block.id)}</div>`);
@@ -73,6 +96,7 @@ ${themeColorMeta(cfg.look)}
 <meta property="og:title" content="${esc(cfg.profile.name)}"><meta property="og:description" content="${esc(plain(cfg.profile.bio))}">
 ${photo.startsWith('https:') ? `<meta property="og:image" content="${esc(photo)}">` : ''}
 <link rel="icon" href="favicon.ico" sizes="32x32"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+${fontLink([cfg.look.font, ...cfg.blocks.filter((b) => !b.hidden).map((b) => b.font)])}
 <style>${css}${lookColors(cfg.look)}</style>
 </head><body class="template-${cfg.look.template}${preview ? '' : ' intro'}"${typeof cfg.look.margin === 'number' ? ' data-margin' : ''} style="${esc(lookVars(cfg.look))}">
 <div class="backdrop">${photoBg ? `<img src="${esc(backgroundImage)}" alt="">` : ''}</div>
@@ -152,8 +176,8 @@ function bio(cfg: Config, data: string): string {
 /** A free text item: a title, subtitle, paragraph or small label. Line breaks are kept. */
 function textBlock(block: PageBlock, data: string): string {
   const style = block.textStyle ?? 'body';
-  const tag = style === 'title' ? 'h2' : style === 'subtitle' ? 'h3' : 'p';
-  return `<${tag} class="text-block text-${style}"${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}><span class="fit">${rich(block.title!.trim())}</span></${tag}>`;
+  const heading = style === 'title' ? ' role="heading" aria-level="2"' : style === 'subtitle' ? ' role="heading" aria-level="3"' : '';
+  return `<div class="text-block text-${style}"${heading}${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}><div class="fit">${richBlock(block.title!.trim())}</div></div>`;
 }
 
 /** Degrees, certificates, awards and roles: a list, small cards, or a timeline. */
@@ -179,13 +203,15 @@ function highlights(cfg: Config, data: string, part?: string): string {
   return items.length ? `<div class="stats" ${data}>${items.map((h) => `<div><b>${esc(h.value)}</b><span>${esc(h.label)}</span></div>`).join('')}</div>` : '';
 }
 
-function social(cfg: Config, data: string, part?: string): string {
+function social(cfg: Config, data: string, part?: string, color?: string): string {
   const items = cfg.social.map((s, i) => ({ ...s, id: socialKey(s, i) })).filter((s) => safeUrl(s.url) && (part === undefined || s.id === part));
   if (!items.length) return '';
   return `<nav class="social" aria-label="Social profiles" ${data}>${items.map((s) => {
     const p = platform(s.platform);
-    const glyph = p?.slug ? `<img src="https://cdn.simpleicons.org/${p.slug}/111111" alt="">` : icon(p?.icon ?? 'link', 22);
-    return `<a class="glass" data-social-id="${esc(s.id)}" href="${esc(safeUrl(s.url))}" aria-label="${esc(p?.label ?? s.platform)}" rel="noopener">${glyph}</a>`;
+    // Logos load black and turn white on dark pages, unless the person chose brand colors or a color of their own.
+    const tint = color === 'brand' ? '' : color ? '/' + color.slice(1) : '/111111';
+    const glyph = p?.slug ? `<img src="https://cdn.simpleicons.org/${p.slug}${tint}" alt="">` : icon(p?.icon ?? 'link', 22);
+    return `<a class="glass" data-social-id="${esc(s.id)}" href="${esc(safeUrl(s.url))}" aria-label="${esc(p?.label ?? s.platform)}" rel="noopener"${color && color !== 'brand' ? ` style="color:${esc(color)}"` : ''}>${glyph}</a>`;
   }).join('')}</nav>`;
 }
 

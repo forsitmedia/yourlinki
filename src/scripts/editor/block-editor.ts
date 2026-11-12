@@ -5,10 +5,10 @@ import { imageFrameStyle } from '../../lib/image-frame';
 import { moveSocial, socialKey } from '../../lib/social-order';
 import { sortable } from './reorder';
 import { socialGlyph } from './social-glyph';
-import { state, changed, onChange, uid } from './state';
+import { state, changed, onChange, uid, placeBlock } from './state';
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
-import { BOLD } from '../../lib/render';
+import { BOLD, LINK } from '../../lib/render';
 import { SHAPES, SHAPE_COLORS, shapeSvg } from '../../lib/shapes';
 import { linkSheet, socialSheet, mediaSheet, postSheet } from './sheets';
 import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast, dangerRow } from './ui';
@@ -144,7 +144,7 @@ function highlightsGroup() {
 
 export function addMediaItem(type: 'youtube' | 'image' | 'post') {
   const block = { id: `${type}:${uid()}`, type, title: '', url: '', image: null, ...(type === 'post' ? { description: '' } : {}) };
-  state.cfg.blocks.push(block); changed(true);
+  placeBlock(block); changed(true);
   if (type === 'post') postSheet(block, true); else mediaSheet(block, true);
 }
 /** How each mark is written (the same rules as rich() in render.ts). A single * never counts as half of a **. */
@@ -166,7 +166,7 @@ function markAround(value: string, mark: string, a: number, b: number) {
 
 /** B / I / U / S buttons over a text box. Each works like a switch: on plain words it adds the style,
  * inside styled words (selected with or without the marks) it takes the style away. */
-export function formatBar(area: HTMLElement) {
+export function formatBar(area: HTMLElement, lists = false) {
   const box = area.querySelector('textarea')!;
   const toggle = (mark: string) => {
     const { selectionStart: a, selectionEnd: b, value } = box;
@@ -183,6 +183,36 @@ export function formatBar(area: HTMLElement) {
     box.dispatchEvent(new Event('input', { bubbles: true }));
     refresh();
   };
+  /** Bullets or numbers on every line the selection touches; tapping again takes them away. */
+  const list = (numbered: boolean) => {
+    const { selectionStart: a, selectionEnd: b, value } = box;
+    const from = value.lastIndexOf('\n', a - 1) + 1, to = value.indexOf('\n', b) < 0 ? value.length : value.indexOf('\n', b);
+    const lines = value.slice(from, to).split('\n');
+    const marker = numbered ? /^\s*\d+[.)]\s+/ : /^\s*[-•]\s+/;
+    const on = lines.every((l) => marker.test(l));
+    const next = lines.map((l, i) => { const bare = l.replace(/^\s*(\d+[.)]|[-•])\s+/, ''); return on ? bare : (numbered ? `${i + 1}. ` : '- ') + bare; }).join('\n');
+    box.value = value.slice(0, from) + next + value.slice(to);
+    box.setSelectionRange(from, from + next.length);
+    box.focus(); box.dispatchEvent(new Event('input', { bubbles: true })); refresh();
+  };
+  /** Turns the selected words into a link, or removes the link the cursor is in. */
+  const link = () => {
+    const { selectionStart: a, selectionEnd: b, value } = box;
+    for (const m of value.matchAll(LINK)) {
+      const start = m.index!, end = start + m[0].length;
+      if (a >= start && b <= end) {
+        box.value = value.slice(0, start) + m[1] + value.slice(end); box.setSelectionRange(start, start + m[1].length);
+        box.focus(); box.dispatchEvent(new Event('input', { bubbles: true })); refresh(); return;
+      }
+    }
+    const words = value.slice(a, b).trim() || 'link';
+    const address = prompt(`Link "${words}" to which address?`, 'https://');
+    if (!address || address === 'https://') { box.focus(); return; }
+    const piece = `[${words}](${withScheme(address.trim())})`;
+    box.value = value.slice(0, a) + piece + value.slice(b);
+    box.setSelectionRange(a + 1, a + 1 + words.length);
+    box.focus(); box.dispatchEvent(new Event('input', { bubbles: true })); refresh();
+  };
   const buttons = new Map<string, HTMLElement>();
   const button = (mark: string, label: string, title: string, style: string) => {
     const el = h('button', { type: 'button', class: 'format-button', title, 'aria-label': title, 'aria-pressed': 'false', style,
@@ -191,12 +221,18 @@ export function formatBar(area: HTMLElement) {
     return el;
   };
   /** A button lights up while the cursor is inside text with its style. */
-  const refresh = () => buttons.forEach((el, mark) => el.setAttribute('aria-pressed', String(!!markAround(box.value, mark, box.selectionStart, box.selectionEnd))));
+  const refresh = () => {
+    buttons.forEach((el, mark) => el.setAttribute('aria-pressed', String(!!markAround(box.value, mark, box.selectionStart, box.selectionEnd))));
+    const inLink = [...box.value.matchAll(LINK)].some((m) => box.selectionStart >= m.index! && box.selectionEnd <= m.index! + m[0].length);
+    linkButton.setAttribute('aria-pressed', String(inLink));
+  };
+  const extra = (label: string, title: string, run: () => void) => h('button', { type: 'button', class: 'format-button', title, 'aria-label': title, onmousedown: (e: Event) => e.preventDefault(), onclick: run }, label);
+  const linkButton = extra('🔗', 'Link the selected words (tap again inside a link to remove it)', link);
   ['select', 'keyup', 'click', 'input', 'focus'].forEach((type) => box.addEventListener(type, refresh));
   return h('div', { class: 'format-bar' },
     button('**', 'B', 'Bold', 'font-weight:700'), button('*', 'I', 'Italic', 'font-style:italic;font-family:Georgia,serif'),
     button('__', 'U', 'Underline', 'text-decoration:underline'), button('~~', 'S', 'Crossed out', 'text-decoration:line-through'),
-    h('span', { class: 'format-hint' }, 'Select words, then tap a style'));
+    ...(lists ? [h('span', { class: 'format-gap' }), extra('•', 'Bullet list', () => list(false)), extra('1.', 'Numbered list', () => list(true)), linkButton] : [linkButton]));
 }
 
 export const TEXT_STYLE_OPTIONS: { value: TextStyle; label: string }[] = [
@@ -208,8 +244,8 @@ export function textSheet(block: PageBlock, isNew = false) {
   let deleted = false;
   const body = h('div');
   const draw = () => body.replaceChildren(
-    group({ footer: 'Line breaks are kept. Size, font and spacing can be changed on the page in Edit layout.' },
-      ...withFormatBar(textareaRow(block.title ?? '', (v) => { block.title = v; changed(); }, 'Write anything: a heading, a note, a quote…', 600))),
+    group({ footer: 'Select words for bold, italic, underline, crossed out or a link. • and 1. turn lines into a list. Size, font and spacing are in Edit layout.' },
+      ...withFormatBar(textareaRow(block.title ?? '', (v) => { block.title = v; changed(); }, 'Write anything: a heading, a note, a list, a quote…', 1200), true)),
     group({ header: 'Style' }, h('div', { class: 'row stacked' }, segmented(TEXT_STYLE_OPTIONS, block.textStyle ?? 'body', (v) => { block.textStyle = v; changed(); }))),
     group({ header: 'Alignment' }, h('div', { class: 'row stacked' }, segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), block.textAlign ?? 'center', (v) => { block.textAlign = v; changed(); }))),
     group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
@@ -226,7 +262,7 @@ export function textSheet(block: PageBlock, isNew = false) {
   } });
   setTimeout(() => body.querySelector('textarea')?.focus(), 50);
 }
-const withFormatBar = (area: HTMLElement) => [h('div', { class: 'row stacked' }, formatBar(area)), area];
+const withFormatBar = (area: HTMLElement, lists = false) => [h('div', { class: 'row stacked' }, formatBar(area, lists)), area];
 
 /** Degrees, certificates, awards and roles, shown as a list, cards or a timeline. */
 export function credentialsSheet(block: PageBlock, isNew = false) {
@@ -276,7 +312,7 @@ export function credentialsSheet(block: PageBlock, isNew = false) {
 }
 export function addCredentials() {
   const block: PageBlock = { id: `credentials:${uid()}`, type: 'credentials', title: 'Education', variant: 'list', entries: [{ kind: 'degree', title: '', org: '', year: '' }] };
-  state.cfg.blocks.push(block); changed(true);
+  placeBlock(block); changed(true);
   credentialsSheet(block, true);
 }
 
@@ -295,9 +331,12 @@ export function shapeSheet(block: PageBlock, isNew = false) {
     }, picture(shapeSvg({ ...deco, shape: s.id, rotate: 0 }, `pick-${s.id}`))))))),
     group({ header: 'Color' }, h('div', { class: 'row stacked' }, h('div', { class: 'shape-colors' }, SHAPE_COLORS.map((c) => h('button', {
       type: 'button', class: 'shape-color' + (deco.color === c.id ? ' on' : ''), 'aria-label': `${c.label} color`, 'aria-pressed': String(deco.color === c.id), title: c.label,
-      style: c.stops ? `background:linear-gradient(135deg,${c.stops[0]},${c.stops[1]})` : 'background:currentColor',
+      style: c.stops ? `background:linear-gradient(135deg,${c.stops[0]},${c.stops[1]})` : c.id === 'custom' ? 'background:conic-gradient(#ff3b30,#ffd60a,#34c759,#0a84ff,#bf5af2,#ff3b30)' : 'background:currentColor',
       onclick: () => { deco.color = c.id; changed(); draw(); },
     }))))),
+    deco.color === 'custom' ? group({ footer: 'Pick the same color twice for a plain color.' },
+      h('label', { class: 'row' }, h('span', { class: 'lbl' }, 'From'), h('input', { type: 'color', value: deco.from ?? '#ff3d7f', oninput: (e: any) => { deco.from = e.target.value; changed(); } })),
+      h('label', { class: 'row' }, h('span', { class: 'lbl' }, 'To'), h('input', { type: 'color', value: deco.to ?? deco.from ?? '#7b4dff', oninput: (e: any) => { deco.to = e.target.value; changed(); } }))) : document.createDocumentFragment(),
     !SHAPES.find((s) => s.id === deco.shape)?.line ? group({}, switchRow('Outline only', !!deco.outline, (v) => { deco.outline = v || undefined; changed(); draw(); })) : document.createDocumentFragment(),
     group({ header: 'Rotation' }, h('label', { class: 'row image-range' },
       h('span', { class: 'image-range-label' }, 'Turn', h('output', {}, `${deco.rotate ?? 0}°`)),
@@ -319,13 +358,13 @@ export function shapeSheet(block: PageBlock, isNew = false) {
 }
 export function addShape() {
   const block: PageBlock = { id: `shape:${uid()}`, type: 'shape', deco: { shape: 'sparkle', color: 'sunset' }, design: { span: 4, align: 'auto' } };
-  state.cfg.blocks.push(block); changed(true);
+  placeBlock(block); changed(true);
   shapeSheet(block, true);
 }
 
 export function addTextItem() {
   const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
-  state.cfg.blocks.push(block); changed(true);
+  placeBlock(block); changed(true);
   textSheet(block, true);
 }
 
@@ -335,7 +374,7 @@ export function addItemMenu() {
       navRow({ lead: svg('link'), title: 'Link', subtitle: 'A button or a photo tile', onClick: () => {
         close();
         const link = { id: uid(), title: '', url: '' };
-        state.cfg.links.push(link); state.cfg.blocks.push({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
+        state.cfg.links.push(link); placeBlock({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
       } }),
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
       navRow({ lead: svg('star'), title: 'Shape', subtitle: 'Abstract drawings and doodles', onClick: () => { close(); addShape(); } }),

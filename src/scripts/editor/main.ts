@@ -1,6 +1,6 @@
 /** Editor shell, visual layout canvas and publishing. */
 import { renderPage } from '../../lib/render';
-import { state, onChange, isDirty, changed, undo, redo, canUndo, canRedo } from './state';
+import { state, onChange, isDirty, changed, undo, redo, canUndo, canRedo, setAnchor } from './state';
 import { pageTab } from './page-tab';
 import { editPageBlock, editSocialIcon, addItemMenu } from './block-editor';
 import { settingsTab } from './settings-tab';
@@ -9,6 +9,10 @@ import { openPublish } from './publish';
 import { welcome } from './welcome';
 import { VisualCanvas } from './canvas';
 import { h, segmented, svg } from './ui';
+import { ALL_FONTS_LINK } from '../../lib/look';
+
+// The font pickers show each font in its own letters.
+document.head.insertAdjacentHTML('beforeend', ALL_FONTS_LINK());
 
 type Tab = 'page' | 'insights' | 'settings';
 const TITLES: Record<Tab, string> = { page: 'Your Page', insights: 'Insights', settings: 'Settings' };
@@ -28,6 +32,7 @@ const canvas = new VisualCanvas({
   save: openPublish,
   undo, redo, canUndo, canRedo,
 });
+setAnchor(() => canvas.anchor());
 const mode = segmented([{ value: 'edit', label: 'Edit layout' }, { value: 'view', label: 'Preview' }], 'edit', (value) => setMode(value === 'edit'));
 mode.classList.add('canvas-mode');
 function setMode(edit: boolean) {

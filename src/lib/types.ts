@@ -42,7 +42,10 @@ export type PageBlock = {
   design?: BlockDesign;
   type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape';
   /** Shape items: which drawing, its colors, outline, rotation and motion. */
-  deco?: { shape: string; color: string; outline?: boolean; rotate?: number; motion?: ShapeMotion };
+  deco?: { shape: string; color: string; outline?: boolean; rotate?: number; motion?: ShapeMotion; from?: string; to?: string };
+  /** Social icons: glyph color ('brand' or #hex) and the circle behind each icon. */
+  iconColor?: string;
+  iconStyle?: CardStyle;
   /** Credentials items: the entries and how they are laid out. */
   entries?: Credential[];
   variant?: typeof CREDENTIAL_LAYOUTS[number];
@@ -102,7 +105,7 @@ export type Config = {
 
 export const TEXT_STYLES = ['title', 'subtitle', 'body', 'small'] as const;
 export type TextStyle = typeof TEXT_STYLES[number];
-export const FONT_IDS = ['system', 'rounded', 'serif', 'mono', 'display'] as const;
+export const FONT_IDS = ['system', 'rounded', 'serif', 'mono', 'display', 'inter', 'poppins', 'montserrat', 'grotesk', 'syne', 'playfair', 'dmserif', 'lora', 'bebas', 'archivo', 'caveat', 'pacifico'] as const;
 export type FontId = typeof FONT_IDS[number];
 export const NAME_ALIGN = ['left', 'center', 'right'] as const;
 export type NameAlign = typeof NAME_ALIGN[number];
@@ -168,7 +171,8 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     const id = typeof b.id === 'string' && b.id ? b.id : `item:${result.length}`;
     const design = normalizeBlockDesign(b.design);
     const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900), dx = bounded(b.dx, -600, 600), dy = bounded(b.dy, -1200, 1200);
-    const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
+    const icons = b.type === 'social' ? { ...(b.iconColor === 'brand' || /^#[0-9a-f]{6}$/i.test(b.iconColor) ? { iconColor: b.iconColor } : {}), ...(CARD_STYLES.includes(b.iconStyle) ? { iconStyle: b.iconStyle } : {}) } : {};
+    const layout = { ...icons, ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
       ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(dy ? { dy: Math.round(dy) } : {}),
       ...(CARD_STYLES.includes(b.cardStyle) && CARD_TYPES.includes(b.type) ? { cardStyle: b.cardStyle as CardStyle } : {}) };
     if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
@@ -187,7 +191,8 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
       const rotate = bounded(d.rotate, 0, 359);
       add({ id, type: 'shape', ...layout, hidden: !!b.hidden, deco: {
         shape: SHAPES.some((s) => s.id === d.shape) ? d.shape : SHAPES[0].id, color: SHAPE_COLORS.some((c) => c.id === d.color) ? d.color : 'sunset',
-        ...(d.outline === true ? { outline: true } : {}), ...(rotate ? { rotate: Math.round(rotate) } : {}), ...(SHAPE_MOTIONS.includes(d.motion) && d.motion !== 'none' ? { motion: d.motion } : {}) } });
+        ...(d.outline === true ? { outline: true } : {}), ...(rotate ? { rotate: Math.round(rotate) } : {}), ...(SHAPE_MOTIONS.includes(d.motion) && d.motion !== 'none' ? { motion: d.motion } : {}),
+        ...(/^#[0-9a-f]{6}$/i.test(d.from) ? { from: d.from } : {}), ...(/^#[0-9a-f]{6}$/i.test(d.to) ? { to: d.to } : {}) } });
     } else if (b.type === 'text') {
       add({ id, type: 'text', ...layout, title: typeof b.title === 'string' ? b.title : '', hidden: !!b.hidden,
         ...(TEXT_STYLES.includes(b.textStyle) ? { textStyle: b.textStyle } : {}), ...(NAME_ALIGN.includes(b.textAlign) ? { textAlign: b.textAlign } : {}) });

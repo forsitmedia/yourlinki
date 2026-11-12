@@ -1,7 +1,8 @@
 /** One ordered content list, with layout presets and the existing appearance controls. */
 import { platform } from '../../lib/platforms';
 import { editPageBlock, addItemMenu, addMediaItem } from './block-editor';
-import { FONTS, modeFor } from '../../lib/look';
+import { FONTS, FONT_LABELS, modeFor } from '../../lib/look';
+import { plain } from '../../lib/render';
 import { TEMPLATES } from '../../lib/templates';
 import { youtubeVideo, youtubeCover, postSource } from '../../lib/media';
 import { isVisible, safeImg, type Look, type PageBlock } from '../../lib/types';
@@ -69,7 +70,7 @@ export function pageTab(): HTMLElement {
     if (b.type === 'bio') return { title: 'Bio', subtitle: extra(cfg.profile.bio || 'Add a few words about you'), icon: 'text', hidden };
     if (b.type === 'shape') return { title: 'Shape', subtitle: extra(`${b.deco?.shape ?? 'blob'} · ${b.deco?.color ?? ''}`), icon: 'star', hidden };
     if (b.type === 'credentials') return { title: b.title || 'Credentials', subtitle: extra((b.entries ?? []).map((e) => e.title).filter(Boolean).join(' · ') || 'Add your degrees and awards'), icon: 'cap', hidden };
-    if (b.type === 'text') return { title: b.title?.trim().split('\n')[0] || 'Text', subtitle: extra({ title: 'Title', subtitle: 'Subtitle', body: 'Text', small: 'Label' }[b.textStyle ?? 'body']), icon: 'text', hidden };
+    if (b.type === 'text') return { title: plain(b.title ?? '').trim().split('\n')[0].replace(/^\s*([-•]|\d+[.)])\s+/, '') || 'Text', subtitle: extra({ title: 'Title', subtitle: 'Subtitle', body: 'Text', small: 'Label' }[b.textStyle ?? 'body']), icon: 'text', hidden };
     if (b.type === 'highlights' && b.part) { const x = cfg.highlights[Number(b.part)]; return { title: [x?.value, x?.label].filter(Boolean).join(' ') || 'Highlight', subtitle: extra('One highlight'), icon: 'star', hidden }; }
     if (b.type === 'social' && b.part) { const s = cfg.social.find((s, i) => (s.id || `social:${i}`) === b.part); return { title: `${platform(s?.platform ?? '')?.label ?? 'Social'} icon`, subtitle: extra(s?.url.replace(/^(https?:\/\/|mailto:)/, '') ?? ''), icon: 'globe', hidden }; }
     if (b.type === 'highlights') return { title: 'Highlights', subtitle: extra(cfg.highlights.map((x) => [x.value, x.label].filter(Boolean).join(' ')).join(' · ') || 'Add your numbers'), icon: 'star', hidden };
@@ -111,8 +112,10 @@ export function pageTab(): HTMLElement {
     const look = cfg.look;
     const set = <K extends keyof Look>(k: K, v: Look[K], redraw = false) => { look[k] = v; changed(redraw); };
     const line = (label: string, control: Node) => h('div', { class: 'row stacked' }, h('span', { class: 'lbl' }, label), control);
-    const fontControl = segmented((Object.keys(FONTS) as Look['font'][]).map((f) => ({ value: f, label: f[0].toUpperCase() + f.slice(1), style: `font-family:${FONTS[f]}` })), look.font, (v) => set('font', v));
-    fontControl.classList.add('font-options');
+    const fontControl = h('div', { class: 'font-chips page-fonts' }, (Object.keys(FONTS) as Look['font'][]).map((f) => h('button', {
+      type: 'button', class: 'font-chip' + (look.font === f ? ' on' : ''), 'aria-pressed': String(look.font === f), style: `font-family:${FONTS[f]}`, title: `${FONT_LABELS[f]} font`,
+      onclick: () => set('font', f, true),
+    }, h('b', {}, 'Aa'), h('span', {}, FONT_LABELS[f]))));
     return group({ header: 'Make it yours', footer: look.mode === 'auto'
         ? 'Automatic shows the light or dark version to match each visitor\'s phone. Colors are adjusted so text always stays readable.'
         : 'Colors are adjusted so text always stays readable. Automatic follows each visitor\'s phone instead.' },

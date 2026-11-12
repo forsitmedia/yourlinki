@@ -3,7 +3,7 @@ import { safeImg } from '../../lib/types';
 import { LayoutHistory, bounded, designStyle, dropTarget, moveBlock, separateName, separateGroup, sizeTier, type BlockRect } from '../../lib/layout';
 import { TEXT_STYLE_OPTIONS } from './block-editor';
 import { NAME_ALIGN, FONT_IDS, type FontId } from '../../lib/types';
-import { FONTS } from '../../lib/look';
+import { FONTS, FONT_LABELS } from '../../lib/look';
 import { imageFrameStyle, normalizeImageFrame } from '../../lib/image-frame';
 import { youtubeCover, videoRatio } from '../../lib/media';
 import { icon } from '../../lib/icons';
@@ -17,8 +17,9 @@ import { tileStylePicker } from './tile-style-picker';
 import { TILE_PRESETS } from '../../lib/tile-style';
 import { socialGlyph } from './social-glyph';
 import { guardTouchScroll, pressToDrag } from './reorder';
-import { h, segmented } from './ui';
+import { h, segmented, swatches } from './ui';
 import css from './canvas.css?inline';
+import { plain } from '../../lib/render';
 import { Guides, guideCss } from './guides';
 
 type Selection = { id: string; part?: 'photo' | 'cover' | 'name'; socialId?: string };
@@ -51,14 +52,19 @@ export class VisualCanvas {
     this.guides = new Guides(doc);
     const ui = doc.createElement('div'); ui.className = 'canvas-ui';
     ui.innerHTML = `<button type="button" class="canvas-drag" aria-label="Drag selected item" title="Drag to reorder">${icon('grip', 17)}</button><button type="button" class="canvas-edit" aria-label="Edit selected item">Edit</button><button type="button" class="canvas-resize" aria-label="Resize selected item from its right side" title="Drag to change the width, double-click to reset"></button>`
-      + ['left', 'top', 'bottom'].map((side) => `<button type="button" class="canvas-side" data-side="${side}" aria-label="Stretch selected item from its ${side} side" title="${side === 'left' ? 'Drag to change the width' : 'Drag to change the height'}, double-click to reset"></button>`).join('');
+      + ['left', 'top', 'bottom'].map((side) => `<button type="button" class="canvas-side" data-side="${side}" aria-label="Stretch selected item from its ${side} side" title="${side === 'left' ? 'Drag to change the width' : 'Drag to change the height'}, double-click to reset"></button>`).join('')
+      + ['top-left', 'top-right', 'bottom-left', 'bottom-right'].map((corner) => `<button type="button" class="canvas-side canvas-corner" data-side="${corner}" aria-label="Resize selected item from its ${corner.replace('-', ' ')} corner" title="Drag to scale everything together (size and text), double-click to reset"></button>`).join('');
     doc.body.append(ui); this.ui = ui;
     ui.querySelector('.canvas-drag')!.addEventListener('pointerdown', (e) => this.drag(e as PointerEvent));
     ui.querySelector('.canvas-resize')!.addEventListener('pointerdown', (e) => this.resize(e as PointerEvent));
     ui.querySelector('.canvas-resize')!.addEventListener('dblclick', () => this.resetSize());
     ui.querySelectorAll<HTMLElement>('.canvas-side').forEach((handle) => {
-      handle.addEventListener('pointerdown', (e) => this.stretch(e as PointerEvent, handle.dataset.side as 'left' | 'top' | 'bottom'));
-      handle.addEventListener('dblclick', () => handle.dataset.side === 'left' ? this.resetSize() : this.action(() => { const b = this.block(); if (b) b.height = undefined; }));
+      handle.addEventListener('pointerdown', (e) => this.stretch(e as PointerEvent, handle.dataset.side!));
+      handle.addEventListener('dblclick', () => {
+        const side = handle.dataset.side!;
+        if (side.includes('left') || side.includes('right')) this.resetSize();
+        if (side.includes('top') || side.includes('bottom')) this.action(() => { const b = this.block(); if (b) { b.height = undefined; if (side.includes('-')) b.textScale = undefined; } });
+      });
     });
     ui.querySelector('.canvas-edit')!.addEventListener('click', () => this.editSelection());
     const socialStarts = [...doc.querySelectorAll<HTMLElement>('.social:not([data-part]) [data-social-id]')].map((el) => {
@@ -95,7 +101,10 @@ export class VisualCanvas {
       if (!block) { this.select(null); return; }
       const part = target.closest<HTMLElement>('[data-profile-part]')?.dataset.profilePart as Selection['part'];
       const socialId = block.hasAttribute('data-part') ? undefined : target.closest<HTMLElement>('[data-social-id]')?.dataset.socialId;
-      this.select({ id: block.dataset.blockId!, ...(part ? { part } : {}), ...(socialId ? { socialId } : {}) });
+      const id = block.dataset.blockId!, current = this.selection;
+      // A second tap on what is already selected (or a double-click) opens its editor.
+      if (current && current.id === id && current.part === part && current.socialId === socialId) { this.editSelection(); return; }
+      this.select({ id, ...(part ? { part } : {}), ...(socialId ? { socialId } : {}) });
     };
     const key = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); this.o.save(); return; }
@@ -143,6 +152,19 @@ export class VisualCanvas {
     if (this.selection?.socialId) this.o.editSocial(this.selection.socialId);
     else if (this.selection) this.o.edit(this.selection.id);
   }
+  /** The item new things are added after: the selection, or the item nearest the middle of the view. */
+  anchor(): string | null {
+    if (this.selection) return this.selection.id;
+    if (!this.doc) return null;
+    const middle = this.doc.defaultView!.innerHeight / 2;
+    let best: string | null = null, distance = Infinity;
+    for (const el of this.elements()) {
+      const r = el.getBoundingClientRect(); if (!r.height) continue;
+      const d = r.top <= middle && r.bottom >= middle ? 0 : Math.min(Math.abs(r.top - middle), Math.abs(r.bottom - middle));
+      if (d < distance || (d === distance && r.bottom > 0)) { distance = d; best = el.dataset.blockId!; }
+    }
+    return best;
+  }
   private block() { return this.o.config().blocks.find((b) => b.id === this.selection?.id); }
   private select(selection: Selection | null) { this.selection = selection; this.position(); this.inspector(); }
   private position() {
@@ -160,7 +182,8 @@ export class VisualCanvas {
     const left = Math.max(5, rect.left);
     this.ui.style.left = `${left + win.scrollX}px`; this.ui.style.top = `${rect.top + win.scrollY}px`;
     this.ui.style.width = `${Math.min(rect.right, win.innerWidth - 5) - left}px`; this.ui.style.height = `${rect.height}px`;
-    if (!this.freeDragging) this.showGuides(target);
+    // The guides appear only while something is being moved or resized.
+    if (!this.freeDragging) { if (this.busy) this.showGuides(target); else this.guides?.clear(); }
   }
   /** Everything the selection can line up with: the other items (not the ones inside it or around it), and the page. */
   private surroundings(target: HTMLElement) {
@@ -195,7 +218,7 @@ export class VisualCanvas {
       el.style.setProperty('--dx', `${b.dx ?? 0}px`); el.style.setProperty('--dy', `${b.dy ?? 0}px`); el.toggleAttribute('data-free', !!(b.dx || b.dy));
       this.position();
       this.guides!.show({ left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my }, others, page, snap);
-    }, () => { this.freeDragging = false; }, handle);
+    }, () => { this.freeDragging = false; this.guides?.clear(); }, handle);
   }
   private title() {
     const b = this.block(), cfg = this.o.config();
@@ -205,7 +228,7 @@ export class VisualCanvas {
     if (this.selection?.part === 'photo') return 'Photo or logo';
     if (this.selection?.part === 'name') return 'Name';
     if (b.type === 'link') return cfg.links.find((l) => l.id === b.linkId)?.title || 'Link';
-    return b.title || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials', shape: 'Shape' }[b.type]);
+    return (b.title && plain(b.title).split('\n')[0]) || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials', shape: 'Shape' }[b.type]);
   }
   private image() {
     const cfg = this.o.config(), b = this.block();
@@ -317,7 +340,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.iconColor = undefined; b.iconStyle = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -372,7 +395,7 @@ export class VisualCanvas {
       h('span', {}, `Moved freely: ${b.dx ?? 0} → , ${b.dy ?? 0} ↓`),
       h('button', { type: 'button', onclick: () => this.action(() => { b.dx = undefined; b.dy = undefined; }) }, 'Put back')) : null;
     const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]));
-    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
+    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [this.iconColors(b)] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
           el.toggleAttribute('data-vertical', !!b.vertical);
@@ -382,9 +405,21 @@ export class VisualCanvas {
       ...(this.selection?.part === 'name' ? [] : [sizeControl, width, details]));
     if (focus) [...this.o.inspector.querySelectorAll<HTMLInputElement>('input[data-control]')].find((input) => input.dataset.control === focus)?.focus({ preventScroll: true });
   }
+  /** Social icons: their color (page, brand or any color) and the circle behind them. */
+  private iconColors(b: PageBlock) {
+    const color = b.iconColor ?? '';
+    return h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icon color'),
+      segmented([{ value: 'page', label: 'Page' }, { value: 'brand', label: 'Brand' }, { value: 'custom', label: 'Custom' }], color === '' ? 'page' : color === 'brand' ? 'brand' : 'custom',
+        (v) => this.action(() => { b.iconColor = v === 'page' ? undefined : v === 'brand' ? 'brand' : (/^#/.test(color) ? color : '#ff2d92'); })),
+      /^#/.test(color) ? swatches(['#ffffff', '#111111', '#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#30d5c8', '#0a84ff', '#5e5ce6', '#bf5af2', '#ff2d92', '#a2845e'], color,
+        (v) => this.action(() => { b.iconColor = v || undefined; }), false) : null,
+      h('p', { style: 'margin-top:10px' }, 'Circles'),
+      segmented([{ value: 'glass', label: 'Glass' }, { value: 'solid', label: 'Solid' }, { value: 'outline', label: 'Outline' }, { value: 'none', label: 'None' }], b.iconStyle ?? 'glass',
+        (v) => this.action(() => { b.iconStyle = v === 'glass' ? undefined : v; })));
+  }
   /** "Page" follows the page font (Appearance); any other choice applies to this item only. */
   private fontPicker(b: PageBlock) {
-    const options: { value: FontId | ''; label: string }[] = [{ value: '', label: 'Page' }, ...FONT_IDS.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }))];
+    const options: { value: FontId | ''; label: string }[] = [{ value: '', label: 'Page' }, ...FONT_IDS.map((value) => ({ value, label: FONT_LABELS[value] }))];
     return h('div', { class: 'canvas-shapes' }, h('p', {}, 'Font'),
       h('div', { class: 'font-chips' }, options.map((o) => h('button', {
         type: 'button', class: 'font-chip' + ((b.font ?? '') === o.value ? ' on' : ''), 'aria-pressed': String((b.font ?? '') === o.value),
@@ -466,25 +501,60 @@ export class VisualCanvas {
   }
   /** Side handles: the left one changes the width keeping the right edge in place; top and bottom change the height.
    * Pulling the top edge keeps the bottom edge in place (the item grows upwards). */
-  private stretch(event: PointerEvent, side: 'left' | 'top' | 'bottom') {
+  private stretch(event: PointerEvent, handle: string) {
+    const across = handle.includes('left') ? 'left' : handle.includes('right') ? 'right' : null;
+    const down = handle.includes('top') ? 'top' : handle.includes('bottom') ? 'bottom' : null;
     const b = this.block(), el = this.element(); if (!b || !el || this.selection?.part) return;
     const stack = this.doc!.querySelector<HTMLElement>('.stack')!, win = this.doc!.defaultView!;
     const x = event.clientX, y = event.clientY, rect = el.getBoundingClientRect();
     const pad = parseFloat(win.getComputedStyle(stack).paddingLeft) || 0, gap = parseFloat(win.getComputedStyle(stack).columnGap) || 0;
     const column = (stack.clientWidth - pad * 2 + gap) / 12;
     const span = this.span(), start = Math.max(1, Math.min(13 - span, Math.round((rect.left - stack.getBoundingClientRect().left - pad) / column) + 1)), end = start + span - 1;
-    const height = rect.height, offset = b.offset ?? 0;
+    const height = rect.height, offset = b.offset ?? 0, scale0 = b.textScale ?? 1;
+    const setHeight = (value: number) => {
+      value = Math.round(Math.max(24, Math.min(900, value)));
+      b.height = value; el.style.setProperty('--h', `${value}px`); el.setAttribute('data-height', '');
+      if (down === 'top') { const moved = offset - (value - height); b.offset = moved || undefined; el.style.setProperty('--offset', `${moved}px`); el.toggleAttribute('data-offset', !!moved); }
+    };
+    // Corners scale the whole item like a picture: width, height and text size together.
+    if (across && down) {
+      this.gesture(event, (e) => {
+        const grow = ((across === 'right' ? 1 : -1) * (e.clientX - x) / rect.width + (down === 'bottom' ? 1 : -1) * (e.clientY - y) / height) / 2;
+        const wanted = Math.max(.2, 1 + grow);
+        const columns = Math.max(2, Math.min(12, Math.round(span * wanted)));
+        const factor = wanted; // the width moves in page columns, height and text follow the pointer smoothly
+        if (across === 'right') this.applySpan(columns);
+        else {
+          const first = Math.max(1, end - columns + 1);
+          b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
+          el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
+          const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size;
+        }
+        setHeight(height * factor);
+        if (b.type !== 'shape' && b.type !== 'image') {
+          const ts = Math.round(Math.max(.6, Math.min(2, scale0 * factor)) * 100) / 100;
+          b.textScale = ts === 1 ? undefined : ts; el.style.setProperty('--text-scale', String(ts)); el.toggleAttribute('data-text-scale', ts !== 1);
+        }
+        (this.doc!.defaultView as any).yourlinkiFit?.();
+        this.position();
+      }, () => {});
+      return;
+    }
     this.gesture(event, (e) => {
-      if (side === 'left') {
+      if (across === 'right') {
+        const value = span + (e.clientX - x) / column;
+        this.applySpan(value > 11.2 ? 12 : value);
+      }
+      if (across === 'left') {
         const first = Math.max(1, Math.min(end - 1, Math.round(start + (e.clientX - x) / column)));
         b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
         el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
         const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size;
-      } else {
-        const dy = e.clientY - y, value = Math.round(Math.max(24, Math.min(900, side === 'bottom' ? height + dy : height - dy)));
-        b.height = value; el.style.setProperty('--h', `${value}px`); el.setAttribute('data-height', '');
+      }
+      if (down) {
+        const dy = e.clientY - y;
+        setHeight(down === 'bottom' ? height + dy : height - dy);
         (this.doc!.defaultView as any).yourlinkiFit?.(); // text shrinks to fit while the box gets smaller
-        if (side === 'top') { const moved = offset - (value - height); b.offset = moved || undefined; el.style.setProperty('--offset', `${moved}px`); el.toggleAttribute('data-offset', !!moved); }
       }
       this.position();
     }, () => {});

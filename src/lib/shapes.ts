@@ -30,14 +30,38 @@ export const SHAPE_COLORS: { id: string; label: string; stops: [string, string] 
   { id: 'gold', label: 'Gold', stops: ['#ffe27a', '#ff9f1c'] },
   { id: 'candy', label: 'Candy', stops: ['#ffb3f1', '#8fd3ff'] },
   { id: 'chrome', label: 'Chrome', stops: ['#ffffff', '#8a93a6'] },
+  { id: 'aurora', label: 'Aurora', stops: ['#00e0ff', '#8f3bff'] },
+  { id: 'fire', label: 'Fire', stops: ['#ffd23f', '#ff2e2e'] },
+  { id: 'berry', label: 'Berry', stops: ['#ff6fd8', '#7f2fff'] },
+  { id: 'forest', label: 'Forest', stops: ['#c6f36b', '#0f9b6c'] },
+  { id: 'peach', label: 'Peach', stops: ['#ffe0c2', '#ff8a8a'] },
+  { id: 'lagoon', label: 'Lagoon', stops: ['#7cf7d4', '#1f8fff'] },
+  { id: 'night', label: 'Night', stops: ['#5b6cff', '#141a3d'] },
+  { id: 'lava', label: 'Lava', stops: ['#ff8a00', '#b3006b'] },
+  { id: 'white', label: 'White', stops: ['#ffffff', '#ffffff'] },
+  { id: 'black', label: 'Black', stops: ['#111111', '#111111'] },
+  { id: 'red', label: 'Red', stops: ['#ff3b30', '#ff3b30'] },
+  { id: 'orange', label: 'Orange', stops: ['#ff9500', '#ff9500'] },
+  { id: 'yellow', label: 'Yellow', stops: ['#ffd60a', '#ffd60a'] },
+  { id: 'green', label: 'Green', stops: ['#34c759', '#34c759'] },
+  { id: 'teal', label: 'Teal', stops: ['#30d5c8', '#30d5c8'] },
+  { id: 'blue', label: 'Blue', stops: ['#0a84ff', '#0a84ff'] },
+  { id: 'indigo', label: 'Indigo', stops: ['#5e5ce6', '#5e5ce6'] },
+  { id: 'purple', label: 'Purple', stops: ['#bf5af2', '#bf5af2'] },
+  { id: 'pink', label: 'Pink', stops: ['#ff2d92', '#ff2d92'] },
+  { id: 'brown', label: 'Brown', stops: ['#a2845e', '#a2845e'] },
+  { id: 'custom', label: 'Custom', stops: null },
 ];
+const hex = (v: unknown) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 export const SHAPE_MOTIONS = ['none', 'spin', 'float', 'pulse'] as const;
 export type ShapeMotion = typeof SHAPE_MOTIONS[number];
 
 /** The shape as inline SVG. `uid` keeps each gradient's id unique on the page. */
-export function shapeSvg(o: { shape?: string; color?: string; outline?: boolean; rotate?: number }, uid: string): string {
+export function shapeSvg(o: { shape?: string; color?: string; outline?: boolean; rotate?: number; from?: string; to?: string }, uid: string): string {
   const shape = SHAPES.find((s) => s.id === o.shape) ?? SHAPES[0];
-  const color = SHAPE_COLORS.find((c) => c.id === o.color) ?? SHAPE_COLORS[1];
+  const preset = SHAPE_COLORS.find((c) => c.id === o.color) ?? SHAPE_COLORS[1];
+  // Custom: the person's own two colors (one color when both are the same).
+  const color = preset.id === 'custom' ? { stops: [hex(o.from) ? o.from! : '#ff3d7f', hex(o.to) ? o.to! : hex(o.from) ? o.from! : '#7b4dff'] as [string, string] } : preset;
   const id = 'g' + uid.replace(/[^a-z0-9]/gi, '');
   const paint = color.stops ? `url(#${id})` : 'currentColor';
   const line = shape.line || o.outline;

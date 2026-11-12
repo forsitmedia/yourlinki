@@ -548,3 +548,19 @@ html.canvas-editing .deco { pointer-events: auto; }
 .stack :is(.row-link, .primary)[data-height] { overflow: hidden; }
 /* A short stretched card keeps most of its height for the text. */
 .page .stack :is(.text-block, .bio)[data-height][data-card]:not([data-card="none"]) { padding-block: min(14px, calc(var(--h) * .1)); }
+
+/* Lists and links inside text items. A list keeps its bullets on the left and sits where the text is aligned. */
+.text-block .text-para { display: block; }
+.text-block :is(ul, ol) { display: inline-block; margin: .25em 0; padding-left: 1.25em; text-align: left; white-space: normal; }
+.text-block li { margin: .2em 0; padding-left: .15em; }
+.text-block li::marker { color: var(--muted); }
+.text-block ol li::marker { font-variant-numeric: tabular-nums; }
+.text-link { color: inherit; text-decoration: underline; text-decoration-thickness: .07em; text-underline-offset: .16em; text-decoration-color: color-mix(in srgb, currentColor 50%, transparent); }
+.text-link:hover { text-decoration-color: currentColor; }
+
+/* Social icons: chosen glyph color (no white filter) and the circle behind each icon. */
+.social[data-icon-color] img { filter: none; }
+.page .stack .social[data-icon-style="solid"] a { background: color-mix(in srgb, var(--bg) 84%, var(--text)); border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.page .stack .social[data-icon-style="outline"] a { background: transparent; border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.page .stack .social[data-icon-style="none"] a { background: transparent; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.page .stack .social[data-icon-style="none"] img, .page .stack .social[data-icon-style="none"] svg { width: 28px; height: 28px; }

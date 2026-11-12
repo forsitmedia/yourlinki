@@ -17,6 +17,12 @@ html.canvas-editing .canvas-part-selected { outline: 1.5px dashed #007aff; outli
 .canvas-ui .canvas-side[data-side="left"] { top: 50%; left: 0; transform: translate(calc(-50% - 4px), -50%); cursor: ew-resize; }
 .canvas-ui .canvas-side[data-side="top"] { top: 0; left: 50%; transform: translate(-50%, calc(-50% - 4px)); cursor: ns-resize; }
 .canvas-ui .canvas-side[data-side="bottom"] { bottom: 0; left: 50%; transform: translate(-50%, calc(50% + 4px)); cursor: ns-resize; }
+/* Corner handles: square dots that change width and height together. */
+.canvas-ui .canvas-corner { border-radius: 3px; width: 12px; height: 12px; }
+.canvas-ui .canvas-corner[data-side="top-left"] { top: 0; left: 0; transform: translate(calc(-50% - 4px), calc(-50% - 4px)); cursor: nwse-resize; }
+.canvas-ui .canvas-corner[data-side="top-right"] { top: 0; right: 0; transform: translate(calc(50% + 4px), calc(-50% - 4px)); cursor: nesw-resize; }
+.canvas-ui .canvas-corner[data-side="bottom-left"] { bottom: 0; left: 0; transform: translate(calc(-50% - 4px), calc(50% + 4px)); cursor: nesw-resize; }
+.canvas-ui .canvas-corner[data-side="bottom-right"] { bottom: 0; right: 0; transform: translate(calc(50% + 4px), calc(50% + 4px)); cursor: nwse-resize; }
 /* A bigger invisible grip around each dot, easier to catch with a finger. */
 .canvas-ui .canvas-resize::after, .canvas-ui .canvas-side::after { content: ''; position: absolute; inset: -12px; }
 .canvas-ui button:focus-visible { outline: 3px solid #ffcc00; outline-offset: 3px; }

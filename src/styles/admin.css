@@ -521,6 +521,8 @@ button.row:active { transition-duration: 0s; }
 .format-button { width: 36px; height: 32px; border-radius: 8px; background: var(--fill); color: var(--text, inherit); font-size: 15px; }
 .format-button:active, .format-button[aria-pressed="true"] { background: var(--blue); color: #fff; }
 .format-hint { margin-left: auto; font-size: 11px; color: var(--sec); }
+.format-gap { width: 1px; height: 22px; margin: 0 2px; background: var(--sep); }
+.format-bar { flex-wrap: wrap; }
 
 .cred-entry-actions { display: flex; gap: 14px; justify-content: flex-end; }
 
@@ -533,7 +535,7 @@ button.row:active { transition-duration: 0s; }
 .shape-cell { aspect-ratio: 1; border-radius: 12px; background: var(--fill); display: grid; place-items: center; padding: 8px; color: var(--text, #000); }
 .shape-cell.on { outline: 2px solid var(--blue); outline-offset: -2px; }
 .shape-thumb, .shape-thumb svg { display: block; width: 100%; height: 100%; }
-.shape-colors { display: flex; flex-wrap: wrap; gap: 10px; }
+.shape-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 10px; justify-items: center; width: 100%; }
 .shape-color { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 1px #0002; color: var(--text, #000); }
 .shape-color.on { outline: 2px solid var(--blue); outline-offset: 3px; }
 
