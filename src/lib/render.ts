@@ -1,6 +1,6 @@
-import { lookVars, FONTS } from './look';
+import { lookVars, lookColors, themeColorMeta, FONTS } from './look';
 import { imageFrameStyle } from './image-frame';
-import { normalizeButtonShape } from './button-shape';
+import { normalizeButtonShape, normalizeButtonStyle } from './button-shape';
 import { tileAttributes, tileTextStyle } from './tile-style';
 import { socialKey } from './social-order';
 import { bounded, designStyle, normalizeBlockDesign, sizeTier } from './layout';
@@ -50,22 +50,23 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="${cfg.look.mode === 'dark' ? '#000000' : '#f2f2f7'}">
+${themeColorMeta(cfg.look)}
 <title>${esc(cfg.profile.name)}</title>
 <meta name="description" content="${esc(cfg.profile.bio)}">
 <meta property="og:title" content="${esc(cfg.profile.name)}"><meta property="og:description" content="${esc(cfg.profile.bio)}">
 ${photo.startsWith('https:') ? `<meta property="og:image" content="${esc(photo)}">` : ''}
 <link rel="icon" href="favicon.ico" sizes="32x32"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">
-<style>${css}</style>
-</head><body class="template-${cfg.look.template}" style="${esc(lookVars(cfg.look))}">
+<style>${css}${lookColors(cfg.look)}</style>
+</head><body class="template-${cfg.look.template}${preview ? '' : ' intro'}" style="${esc(lookVars(cfg.look))}">
 <div class="backdrop">${photoBg ? `<img src="${esc(backgroundImage)}" alt="">` : ''}</div>
 <main class="page">
 <button class="share glass" aria-label="Share">${icon('share', 18)}</button>
 <div class="stack">${blocks.join('\n')}</div>
 </main>
+${preview ? '' : INTRO_SCRIPT}
 ${MEDIA_SCRIPT}
 ${preview ? PREVIEW_SCRIPT
-  : `${SCHEDULE_SCRIPT}${SHARE_SCRIPT}\n<script type="application/json" id="${CONFIG_ID}">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>`}
+  : `${SCHEDULE_SCRIPT}${SHARE_SCRIPT}${cfg.stats ? statsScript(cfg.stats) : ''}\n<script type="application/json" id="${CONFIG_ID}">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>`}
 </body></html>`;
 }
 
@@ -74,6 +75,9 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   const styles = [designStyle(design)];
   let extra = '';
   if (block.font && FONTS[block.font]) { styles.push(`--block-font:${FONTS[block.font]}`); extra += ' data-font'; }
+  const scale = bounded(block.textScale, .6, 2), offset = bounded(block.offset, -80, 120);
+  if (scale && scale !== 1) { styles.push(`--text-scale:${scale}`); extra += ' data-text-scale'; }
+  if (offset) { styles.push(`--offset:${Math.round(offset)}px`); extra += ' data-offset'; }
   if (block.type === 'profile' && cfg) {
     const size = bounded(cfg.profile.photoSize, 48, 180);
     const height = bounded(cfg.profile.coverHeight, 100, 540);
@@ -110,7 +114,11 @@ function identity(cfg: Config): string {
   return `<header class="identity" data-profile-part="name"${nameAlign ? ` data-align="${nameAlign}"` : ''}><h1>${esc(name)}</h1>${handle ? `<p class="handle">@${esc(handle.replace(/^@/, ''))}</p>` : ''}</header>`;
 }
 
+/** A short bio reads as a subtitle under the name; only longer text gets its own card. */
+export const isShortBio = (text: string) => text.trim().length <= 90 && !text.includes('\n');
+
 function bio(cfg: Config, data: string): string {
+  if (isShortBio(cfg.profile.bio)) return `<p class="bio tagline"${cfg.profile.nameAlign ? ` data-align="${esc(cfg.profile.nameAlign)}"` : ''} ${data}>${esc(cfg.profile.bio.trim())}</p>`;
   return cfg.look.template === 'minimal'
     ? `<section class="bio glass" ${data}><h2>About me</h2><p>${esc(cfg.profile.bio)}</p></section>`
     : `<p class="bio glass" ${data}>${esc(cfg.profile.bio)}</p>`;
@@ -124,10 +132,9 @@ function highlights(cfg: Config, data: string): string {
 function social(cfg: Config, data: string): string {
   const items = cfg.social.map((s, i) => ({ ...s, id: socialKey(s, i) })).filter((s) => safeUrl(s.url));
   if (!items.length) return '';
-  const color = cfg.look.mode === 'dark' ? 'ffffff' : '111111';
   return `<nav class="social" aria-label="Social profiles" ${data}>${items.map((s) => {
     const p = platform(s.platform);
-    const glyph = p?.slug ? `<img src="https://cdn.simpleicons.org/${p.slug}/${color}" alt="">` : icon(p?.icon ?? 'link', 22);
+    const glyph = p?.slug ? `<img src="https://cdn.simpleicons.org/${p.slug}/111111" alt="">` : icon(p?.icon ?? 'link', 22);
     return `<a class="glass" data-social-id="${esc(s.id)}" href="${esc(safeUrl(s.url))}" aria-label="${esc(p?.label ?? s.platform)}" rel="noopener">${glyph}</a>`;
   }).join('')}</nav>`;
 }
@@ -144,7 +151,8 @@ function linkList(items: { link: Link; block: PageBlock }[], attrs: (l: Link) =>
   return runs.map((run) => `<div class="${run.style === 'tiles' ? 'tiles' : 'rows'}">${run.items.map(({ link: l, block }) => {
     const data = blockAttributes(block);
     const shape = normalizeButtonShape(l.buttonShape);
-    const shapeAttr = shape ? ` data-button-shape="${shape}"` : '';
+    const fill = normalizeButtonStyle(l.buttonStyle);
+    const shapeAttr = (shape ? ` data-button-shape="${shape}"` : '') + (fill ? ` data-button-style="${fill}"` : '');
     if (run.style === 'featured') return `<a class="primary" ${attrs(l)} ${data}${shapeAttr}>${esc(l.title)}</a>`;
     if (run.style === 'tiles') return `<a class="tile" ${attrs(l)} ${data}${tileAttributes(l.tile)} aria-label="${esc(l.title)}"><div class="tile-media"><img src="${esc(safeImg(l.image))}" alt="" loading="lazy" style="${esc(imageFrameStyle(l.imageFrame))}"></div><span${tileTextStyle(l.tile)}>${esc(l.title)}</span></a>`;
     return `<a class="row-link glass" ${attrs(l)} ${data}${shapeAttr}><span>${esc(l.title)}</span>${icon('arrow', 18)}</a>`;
@@ -209,6 +217,11 @@ document.addEventListener('click', (event) => {
 });
 </script>`;
 
+/** Items appear one after another when the page opens (the order of the page, top to bottom). */
+const INTRO_SCRIPT = `<script>
+document.querySelectorAll('.stack [data-block-id]').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 10)));
+</script>`;
+
 /** Where the published page keeps its config for the editor. */
 export const CONFIG_ID = 'yourlinki-config';
 
@@ -230,4 +243,25 @@ document.querySelector('.share').addEventListener('click', async () => {
     document.body.append(t); setTimeout(() => t.remove(), 1800);
   } catch {}
 });
+</script>`;
+
+/** Only when the creator connected their own stats worker: one anonymous ping per visit and per tap, no cookies.
+ * Links stay direct. The creator's own browser (it opened the editor) is skipped. `?src=story` on the link labels the source. */
+const statsScript = (endpoint: string) => `<script>
+(() => {
+  try { if (localStorage.getItem('yourlinki-owner')) return; } catch {}
+  const url = ${JSON.stringify(endpoint + '/hit').replace(/</g, '\\u003c')};
+  const s = new URLSearchParams(location.search).get('src') || '';
+  const r = document.referrer;
+  const send = (l) => { try { navigator.sendBeacon(url, JSON.stringify({ l, r, s })); } catch {} };
+  send();
+  document.addEventListener('click', (event) => {
+    const el = event.target.closest('a[href], [data-youtube]');
+    if (!el) return;
+    const social = el.dataset.socialId;
+    const block = el.closest('[data-block-id]');
+    const id = social ? 'social:' + social : el.dataset.youtube ? 'play:' + (block ? block.dataset.blockId : '') : block && block.dataset.blockId;
+    if (id) send(id);
+  }, true);
+})();
 </script>`;

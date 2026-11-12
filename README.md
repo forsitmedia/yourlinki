@@ -4,7 +4,7 @@ A free, open-source link-in-bio page. Design it in a visual editor, publish it o
 
 - **Free.** No subscription, no credit card, no paid plan. GitHub Pages hosts it for free.
 - **Yours.** Your page lives in your own GitHub account. Nobody else can change it, and it keeps working even if this project disappears.
-- **Private.** No accounts on our side, no tracking, no cookies, no ads.
+- **Private.** No accounts on our side, no tracking, no cookies, no ads. Visitor stats are optional and go to *your own* free Cloudflare account.
 
 ## Make your page (about 10 minutes, once)
 
@@ -29,6 +29,27 @@ Good to know:
 - If your computer saves the file as `index (1).html`, rename it to `index.html` before uploading. Otherwise GitHub adds a second file and your page doesn't change.
 - **Settings → Export** saves a backup of everything, photos included.
 
+## One-press Publish and visitor stats (optional, free)
+
+Skip the download and upload: with a tiny worker in your own free Cloudflare account, **Publish** puts your page online by itself, and the **Insights** tab shows how many people visit, what they tap, and where they come from (Instagram, TikTok, …). Your page still lives on GitHub, and its links stay direct.
+
+You need [Node.js](https://nodejs.org) and a free [Cloudflare](https://dash.cloudflare.com/sign-up) account. On your computer, in a copy of your project:
+
+```bash
+npx wrangler login
+npx wrangler d1 create yourlinki                 # paste the database_id it prints into stats/wrangler.jsonc
+npx wrangler d1 execute yourlinki --remote --file stats/schema.sql
+# in stats/wrangler.jsonc, set GITHUB_REPO to your copy, e.g. "yourname/links"
+cd stats && npx wrangler deploy                  # prints your address: https://yourlinki-stats.<you>.workers.dev
+npx wrangler secret put STATS_PASSWORD           # choose your editor password
+```
+
+Then open the editor → **Insights**, enter the address and password, and press **Sign In**. The first time you press **Publish**, the editor asks for a GitHub key that can only change your copy (it walks you through it, about a minute). After that, Publish is one press.
+
+- No cookies. A visitor is an anonymous code that changes every day. Bots, link scanners and your own browser (the one you open the editor in) are not counted.
+- Add `?src=story` to your link (for example in a story) to see that source on its own.
+- Cloudflare's free plan allows 100,000 requests a day, far more than a link-in-bio page needs.
+
 ## Questions
 
 **Do I have to pay anything?** No. GitHub Pages is free for public projects, and this project has no paid features.
@@ -39,9 +60,9 @@ Good to know:
 
 **What is public?** Everything in your GitHub project is public, including hidden and scheduled links (someone could find them in the page's code). Don't put anything private there.
 
-**Which outside services are used?** YouTube (only if you add a video: its cover, title and player), cdn.simpleicons.org (social icons), and api.qrserver.com (only when you open the QR code in Settings; it receives your page link).
+**Which outside services are used?** YouTube (only if you add a video: its cover, title and player), cdn.simpleicons.org (social icons), api.qrserver.com (only when you open the QR code in Settings; it receives your page link), and your own stats worker if you connect one.
 
-**Are there click statistics?** Not in this version. A page on GitHub has no server to count clicks.
+**Are there click statistics?** Yes, if you set up the optional stats worker (see *Visitor stats* above). Without it, your page sends nothing anywhere.
 
 ## Features
 
@@ -78,6 +99,7 @@ npm run build   # rebuilds ./editor; commit it, because GitHub Pages serves the 
 | Social platforms and icons | `src/lib/platforms.ts`, `src/lib/icons.ts` |
 | Editor look | `src/styles/admin.css` |
 | Editor screens | `src/scripts/editor/` |
+| Visitor stats (worker, database, page ping) | `stats/`, `statsScript` in `src/lib/render.ts`, `src/scripts/editor/insights-tab.ts` |
 | The page shown before the first publish | `index.html` |
 
 Keep the root `index.html` as the starter page in the template repository. If you publish your own page, do it in a separate copy, so people who use the template don't start with your page.
@@ -86,6 +108,6 @@ Keep the root `index.html` as the starter page in the template repository. If yo
 
 - [ ] More templates and Spotify embeds
 - [ ] Linktree importer
-- [ ] Optional self-hosted version with click statistics
+- [x] Optional visitor and tap statistics on your own Cloudflare account
 
 License: [MIT](LICENSE)

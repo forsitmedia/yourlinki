@@ -8,9 +8,9 @@ import { youtubeCover, videoRatio } from '../../lib/media';
 import { icon } from '../../lib/icons';
 import { platform } from '../../lib/platforms';
 import { moveSocial, socialKey } from '../../lib/social-order';
-import { buttonShape, usesButton } from '../../lib/button-shape';
+import { buttonShape, buttonStyle, usesButton } from '../../lib/button-shape';
 import { adjustImage } from './image-editor';
-import { shapePicker } from './shape-picker';
+import { shapePicker, stylePicker } from './shape-picker';
 import { tileStylePicker } from './tile-style-picker';
 import { socialGlyph } from './social-glyph';
 import { guardTouchScroll, pressToDrag } from './reorder';
@@ -259,7 +259,8 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) link.buttonShape = undefined; }
+        b.textScale = undefined; b.offset = undefined;
+        if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
         image?.set(undefined);
@@ -272,10 +273,20 @@ export class VisualCanvas {
     const nameControls = b.type === 'name' || this.selection?.part === 'name' ? this.nameControls(b.type === 'name') : null;
     const link = b.type === 'link' ? this.o.config().links.find((l) => l.id === b.linkId) : undefined;
     const shape = link && usesButton(link, this.o.config().look.template) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Button shape'),
-      shapePicker(buttonShape(link, this.o.config().look.template), (value) => this.action(() => { link.buttonShape = value; el.dataset.buttonShape = value; }))) : null;
+      shapePicker(buttonShape(link, this.o.config().look.template), (value) => this.action(() => { link.buttonShape = value; el.dataset.buttonShape = value; })),
+      h('p', { style: 'margin-top:10px' }, 'Button style'),
+      stylePicker(buttonStyle(link), (value) => this.action(() => { link.buttonStyle = value; el.dataset.buttonStyle = value; }))) : null;
+    const textSize = font ? this.range('Text size', Math.round((b.textScale ?? 1) * 100), 60, 200, 5, (v) => {
+      b.textScale = v === 100 ? undefined : v / 100;
+      el.style.setProperty('--text-scale', String(v / 100)); el.toggleAttribute('data-text-scale', v !== 100);
+    }, (v) => `${v}%`) : null;
+    const offset = this.range('Space above', b.offset ?? 0, -80, 120, 1, (v) => {
+      b.offset = v || undefined; el.style.setProperty('--offset', `${v}px`); el.toggleAttribute('data-offset', !!v);
+    }, (v) => `${v > 0 ? '+' : ''}${v}px`);
     const tileStyle = link && safeImg(link.image) && !usesButton(link, this.o.config().look.template)
       ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Image style'), tileStylePicker(link, this.o.config().look.template, (change) => this.action(change), false)) : null;
-    this.o.inspector.replaceChildren(tools, actions, ...(profileParts ? [profileParts] : []), ...(b.type === 'social' ? [this.socialPicker()] : []), ...(nameControls ? [nameControls] : []), ...(shape ? [shape] : []), ...(tileStyle ? [tileStyle] : []), ...(font ? [font] : []),
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset]));
+    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(b.type === 'social' ? [this.socialPicker()] : []), ...(nameControls ? [nameControls] : []), ...(shape ? [shape] : []), ...(tileStyle ? [tileStyle] : []), ...(font ? [font] : []),
       ...(this.selection?.part === 'name' ? [] : [sizeControl, width, details]));
     if (focus) [...this.o.inspector.querySelectorAll<HTMLInputElement>('input[data-control]')].find((input) => input.dataset.control === focus)?.focus({ preventScroll: true });
   }

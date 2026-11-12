@@ -1,7 +1,7 @@
 import defaults from '../../yourlinki.config.json';
 import { normalizeImageFrame, type ImageFrame } from './image-frame';
 import { bounded, normalizeBlockDesign, type BlockDesign } from './layout';
-import { normalizeButtonShape, type ButtonShape } from './button-shape';
+import { normalizeButtonShape, normalizeButtonStyle, type ButtonShape, type ButtonStyle } from './button-shape';
 import { normalizeSocials } from './social-order';
 import { normalizeTileStyle, type TileStyle } from './tile-style';
 
@@ -13,6 +13,7 @@ export type Link = {
   imageFrame?: ImageFrame;
   featured?: boolean;
   buttonShape?: ButtonShape;
+  buttonStyle?: ButtonStyle;
   tile?: TileStyle;
   hidden?: boolean;
   publishAt?: string;
@@ -36,11 +37,16 @@ export type PageBlock = {
   videoAspect?: 'landscape' | 'wide' | 'square';
   /** Overrides the page font for this item only. */
   font?: FontId;
+  /** Text size of this item, 0.6 to 2 (1 = as designed). */
+  textScale?: number;
+  /** Extra space above this item in px; negative pulls it closer to the item above. */
+  offset?: number;
 };
 export type Look = {
   spacing?: number;
   template: Template;
-  mode: 'dark' | 'light';
+  /** 'auto' follows each visitor's phone setting. */
+  mode: 'dark' | 'light' | 'auto';
   background: 'photo' | 'color';
   color: string;
   accent: string; // '' = automatic (white on dark, black on light)
@@ -54,6 +60,8 @@ export type Config = {
   social: Social[];
   blocks: PageBlock[];
   look: Look;
+  /** Address of the creator's own stats worker (see stats/). Empty: the page sends nothing anywhere. */
+  stats?: string;
 };
 
 export const FONT_IDS = ['system', 'rounded', 'serif', 'mono', 'display'] as const;
@@ -68,9 +76,10 @@ const list = <T>(v: unknown, ok: (x: any) => boolean): T[] => (Array.isArray(v) 
 export function normalize(raw: any = {}): Config {
   const c = { ...(defaults as any), ...raw };
   const links = list<Link>(c.links, (l) => l && typeof l.id === 'string' && typeof l.url === 'string')
-    .map((l) => ({ ...l, ...('buttonShape' in l ? { buttonShape: normalizeButtonShape(l.buttonShape) } : {}), ...(l.imageFrame ? { imageFrame: normalizeImageFrame(l.imageFrame) } : {}), tile: normalizeTileStyle(l.tile) }));
+    .map((l) => ({ ...l, ...('buttonShape' in l ? { buttonShape: normalizeButtonShape(l.buttonShape) } : {}), ...(normalizeButtonStyle(l.buttonStyle) ? { buttonStyle: normalizeButtonStyle(l.buttonStyle) } : {}), ...(l.imageFrame ? { imageFrame: normalizeImageFrame(l.imageFrame) } : {}), tile: normalizeTileStyle(l.tile) }));
   const look = { ...DEFAULT_LOOK, ...c.look };
   if (!TEMPLATE_IDS.includes(look.template)) look.template = 'photo';
+  if (!['dark', 'light', 'auto'].includes(look.mode)) look.mode = 'dark';
   if ('spacing' in look) look.spacing = bounded(look.spacing, 8, 36);
   return {
     onboarded: !!c.onboarded,
@@ -85,6 +94,7 @@ export function normalize(raw: any = {}): Config {
     social: normalizeSocials(c.social),
     blocks: normalizeBlocks(c.blocks, links),
     look,
+    ...(typeof c.stats === 'string' && /^https:\/\/[^\s"'<>]+$/.test(c.stats) ? { stats: c.stats.replace(/\/+$/, '') } : {}),
   };
 }
 
@@ -115,7 +125,9 @@ function normalizeBlocks(raw: unknown, links: Link[]): PageBlock[] {
     if (!b || typeof b !== 'object') continue;
     const id = typeof b.id === 'string' && b.id ? b.id : `item:${result.length}`;
     const design = normalizeBlockDesign(b.design);
-    const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}) };
+    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120);
+    const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
+      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}) };
     if (fixed.includes(b.type) || b.type === 'name') { // the name is optional: it exists only when moved apart from the profile
       if (singles.has(b.type)) continue;
       singles.add(b.type);

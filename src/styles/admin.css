@@ -379,6 +379,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-
 .shape-rounded .shape-sample { border-radius: 7px; }
 .shape-pill .shape-sample { border-radius: 999px; }
 .shape-square .shape-sample { border-radius: 1px; }
+.fill-solid .shape-sample { border-radius: 7px; background: currentColor; }
+.fill-glass .shape-sample { border-radius: 7px; border-color: transparent; background: color-mix(in srgb, currentColor 28%, transparent); }
+.fill-outline .shape-sample { border-radius: 7px; }
 .canvas-social-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .canvas-social-picker button { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--sep); font-size: 11px; background: var(--card); }
 .canvas-social-picker button[aria-pressed="true"] { border-color: var(--blue); color: var(--blue); }
@@ -409,7 +412,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-
   .stage-head .stage-close { display: block; }
   .canvas-workspace { display: flex; flex-direction: column; width: min(420px, 100%); gap: 10px; }
   .device-area { flex: 1; height: 0; min-height: 160px; }
-  .stage .preview-surface { position: static; width: 100%; height: 100%; padding: 0; transform: none; border-radius: 16px; box-shadow: none; background: transparent; }
+  .stage .preview-surface { position: relative; width: 100%; height: 100%; padding: 0; transform: none; border-radius: 16px; box-shadow: none; background: transparent; }
   .stage .preview-surface iframe { border-radius: 16px; }
   .canvas-inspector { height: min(230px, 34dvh); padding: 10px; border: 1px solid var(--sep); }
   .canvas-tools button, .canvas-actions button, .canvas-widths button, .canvas-parts button { min-height: 40px; }
@@ -438,3 +441,67 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-
 .font-chip span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font: 9px -apple-system, system-ui, sans-serif; color: var(--sec); }
 .font-chip.on { outline: 2px solid var(--blue); outline-offset: -2px; }
 .font-chip.on span { color: var(--blue); }
+
+/* Insights */
+.stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+.stat-card { padding: 12px 14px; border-radius: 12px; background: var(--card); min-width: 0; }
+.stat-card b { display: block; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.stat-card span { font-size: 13px; color: var(--sec); }
+.chart { display: flex; align-items: flex-end; gap: 3px; height: 130px; padding: 16px; }
+.chart div { flex: 1; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--blue); }
+.chart .empty { margin: auto; color: var(--sec); font-size: 15px; }
+
+/* One-press publishing */
+.publish-status { display: grid; justify-items: center; gap: 8px; padding: 28px 12px 8px; text-align: center; }
+.publish-status p { color: var(--sec); font-size: 15px; }
+.publish-status b { font-size: 20px; }
+.publish-status.done svg { color: var(--green); }
+.spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--fill); border-top-color: var(--blue); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.publish form { display: block; }
+
+/* ── Feel: motion and touch response across the editor. ── */
+/* The next preview loads hidden behind the current one, then takes its place. */
+.preview-surface iframe.incoming { position: absolute; inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px); visibility: hidden; pointer-events: none; }
+@media (max-width: 900px) { .stage .preview-surface iframe.incoming { inset: 0; width: 100%; height: 100%; } }
+
+/* Segmented controls: the selection slides between options. */
+.seg { position: relative; isolation: isolate; --n: 1; --i: 0; }
+.seg:has(> button:nth-child(2)) { --n: 2; } .seg:has(> button:nth-child(3)) { --n: 3; }
+.seg:has(> button:nth-child(4)) { --n: 4; } .seg:has(> button:nth-child(5)) { --n: 5; } .seg:has(> button:nth-child(6)) { --n: 6; }
+.seg:has(> button:nth-child(2).on) { --i: 1; } .seg:has(> button:nth-child(3).on) { --i: 2; }
+.seg:has(> button:nth-child(4).on) { --i: 3; } .seg:has(> button:nth-child(5).on) { --i: 4; } .seg:has(> button:nth-child(6).on) { --i: 5; }
+.seg:has(> button.on)::before {
+  content: ''; position: absolute; z-index: -1; top: 2px; bottom: 2px; left: 2px;
+  width: calc((100% - 4px) / var(--n)); transform: translateX(calc(100% * var(--i)));
+  border-radius: 7px; background: var(--seg-on);
+  box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.04);
+  transition: transform .38s cubic-bezier(.3,.9,.3,1.08);
+}
+.seg button, .seg button.on { background: transparent; box-shadow: none; min-width: 0; transition: opacity .2s, font-weight .2s; }
+.seg button:not(.on):active { opacity: .55; }
+
+/* A new tab slides in softly; redraws inside a tab stay still. */
+@keyframes tab-in { from { opacity: 0; transform: translateY(6px); } }
+.tab-enter { animation: tab-in .32s cubic-bezier(.2,.8,.2,1); }
+
+/* Touch response */
+.btn-text, .group-h button, a.publish-btn, button.publish-btn { transition: opacity .2s ease, transform .3s cubic-bezier(.2,.9,.3,1.3); }
+.btn-text:not(:disabled):active, .group-h button:active { opacity: .45; transition-duration: .05s; }
+.publish-btn:active { transform: scale(.96); transition-duration: .1s; }
+button.row { transition: background-color .35s ease; }
+button.row:active { transition-duration: 0s; }
+.swatch { transition: transform .3s cubic-bezier(.2,.9,.3,1.4), box-shadow .2s ease; }
+.swatch:active { transform: scale(.88); transition-duration: .1s; }
+@media (hover: hover) { .swatch:hover { transform: scale(1.1); } }
+.preview-fab { transition: transform .3s cubic-bezier(.2,.9,.3,1.3); }
+.preview-fab:active { transform: scale(.95); }
+
+/* Toasts drop in from the top, sheets glide (rise is defined above). */
+@keyframes toast-drop { from { opacity: 0; transform: translate(-50%, -12px) scale(.95); } }
+.toast { animation: toast-drop .35s cubic-bezier(.2,.9,.3,1.2); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+
+/* Publishing finished: the check pops in. */
+@keyframes pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.12); } }
+.publish-status.done svg { animation: pop .5s cubic-bezier(.2,.9,.3,1.2); }
+.publish-status, .publish > * { animation: tab-in .3s ease both; }

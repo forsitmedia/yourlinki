@@ -1,6 +1,6 @@
 import type { Config, PageBlock } from './types';
 import type { ImageFrame } from './image-frame';
-import type { ButtonShape } from './button-shape';
+import type { ButtonShape, ButtonStyle } from './button-shape';
 import { socialKey } from './social-order';
 
 export type BlockDesign = { span: number; align: 'auto' | 'left' | 'center' | 'right' };
@@ -47,7 +47,7 @@ export function dropTarget(rects: BlockRect[], x: number, y: number, excluded: s
 const clone = <T>(value: T): T => value === undefined ? value : JSON.parse(JSON.stringify(value));
 type Framed = { source: string | null | undefined; frame?: ImageFrame };
 type LayoutSnapshot = {
-  blocks: { id: string; design?: BlockDesign; image: Framed; videoAspect?: PageBlock['videoAspect']; buttonShape?: ButtonShape }[];
+  blocks: { id: string; design?: BlockDesign; image: Framed; videoAspect?: PageBlock['videoAspect']; buttonShape?: ButtonShape; buttonStyle?: ButtonStyle; textScale?: number; offset?: number }[];
   socialOrder: string[];
   profile: { photo: Framed; cover: Framed; photoSize?: number; coverHeight?: number };
   spacing?: number;
@@ -57,7 +57,7 @@ function blockImage(cfg: Config, b: PageBlock) {
   return { item, source: item?.image || (b.type === 'youtube' ? b.url : null) };
 }
 function snapshot(cfg: Config): LayoutSnapshot {
-  return clone({ blocks: cfg.blocks.map((b) => ({ id: b.id, design: b.design, videoAspect: b.videoAspect, buttonShape: b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId)?.buttonShape : undefined, image: { source: blockImage(cfg, b).source, frame: blockImage(cfg, b).item?.imageFrame } })),
+  return clone({ blocks: cfg.blocks.map((b) => ({ id: b.id, design: b.design, videoAspect: b.videoAspect, textScale: b.textScale, offset: b.offset, buttonShape: b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId)?.buttonShape : undefined, buttonStyle: b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId)?.buttonStyle : undefined, image: { source: blockImage(cfg, b).source, frame: blockImage(cfg, b).item?.imageFrame } })),
     socialOrder: cfg.social.map(socialKey),
     profile: { photo: { source: cfg.profile.photo, frame: cfg.profile.photoFrame }, cover: { source: cfg.profile.cover, frame: cfg.profile.coverFrame }, photoSize: cfg.profile.photoSize, coverHeight: cfg.profile.coverHeight }, spacing: cfg.look.spacing });
 }
@@ -67,9 +67,9 @@ function restore(cfg: Config, value: LayoutSnapshot) {
   for (const item of value.blocks) {
     const b = ids.get(item.id);
     if (!b) continue;
-    b.design = clone(item.design);
+    b.design = clone(item.design); b.textScale = item.textScale; b.offset = item.offset;
     if (b.type === 'youtube') b.videoAspect = item.videoAspect;
-    if (b.type === 'link') { const link = cfg.links.find((l) => l.id === b.linkId); if (link) link.buttonShape = item.buttonShape; }
+    if (b.type === 'link') { const link = cfg.links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = item.buttonShape; link.buttonStyle = item.buttonStyle; } }
     const image = blockImage(cfg, b);
     if (image.item && image.source === item.image.source) image.item.imageFrame = clone(item.image.frame);
     restored.push(b); ids.delete(b.id);

@@ -1,0 +1,23 @@
+// The optional stats worker. Deploy it to your own Cloudflare account (see the README, "Visitor stats").
+{
+  "name": "yourlinki-stats",
+  "main": "worker.ts",
+  "workers_dev": true,
+  "preview_urls": false,
+  // The GitHub repository whose index.html the editor's Publish button replaces.
+  "vars": { "GITHUB_REPO": "forsitmedia/links" },
+  "compatibility_date": "2026-10-01",
+  // Spending guards (see the top of worker.ts): per-device limits, free on every plan.
+  "ratelimits": [
+    { "name": "HITS", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
+    { "name": "LOGINS", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yourlinki",
+      // Replace with the id printed by `npx wrangler d1 create yourlinki`.
+      "database_id": "2907a669-b3bc-4b77-834d-913ea19e7091"
+    }
+  ]
+}

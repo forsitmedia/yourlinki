@@ -4,18 +4,20 @@ import { state, onChange, isDirty, changed, undo, redo, canUndo, canRedo } from 
 import { pageTab } from './page-tab';
 import { editPageBlock, editSocialIcon, addItemMenu } from './block-editor';
 import { settingsTab } from './settings-tab';
+import { insightsTab } from './insights-tab';
 import { openPublish } from './publish';
 import { welcome } from './welcome';
 import { VisualCanvas } from './canvas';
 import { h, segmented, svg } from './ui';
 
-type Tab = 'page' | 'settings';
-const TITLES: Record<Tab, string> = { page: 'Your Page', settings: 'Settings' };
+type Tab = 'page' | 'insights' | 'settings';
+const TITLES: Record<Tab, string> = { page: 'Your Page', insights: 'Insights', settings: 'Settings' };
 let tab: Tab = 'page';
 const saveBtn = h('button', { class: 'btn-text bold', type: 'button', onclick: openPublish }, 'Publish') as HTMLButtonElement;
 const canvasSave = h('button', { class: 'btn-text bold', type: 'button', 'aria-label': 'Publish page design', onclick: openPublish }, 'Publish') as HTMLButtonElement;
 const title = h('h1', { class: 'large-title' }), content = h('div', { class: 'content' });
-const frame = h('iframe', { title: 'Page preview', allow: 'autoplay; fullscreen; picture-in-picture' }) as HTMLIFrameElement;
+const newFrame = () => h('iframe', { title: 'Page preview', allow: 'autoplay; fullscreen; picture-in-picture' }) as HTMLIFrameElement;
+let frame = newFrame();
 const inspector = h('div', { class: 'canvas-inspector' });
 const canvas = new VisualCanvas({
   config: () => state.cfg, inspector,
@@ -53,23 +55,43 @@ document.getElementById('app')!.append(h('div', { class: 'app' },
   h('div', { class: 'editor' },
     h('div', { class: 'navbar' }, h('a', { class: 'btn-text', href: '../', target: '_blank' }, 'View Page'), saveBtn),
     title,
-    segmented([{ value: 'page', label: 'Page' }, { value: 'settings', label: 'Settings' }], tab, (v) => { tab = v; draw(); }),
+    segmented<Tab>([{ value: 'page', label: 'Page' }, { value: 'insights', label: 'Insights' }, { value: 'settings', label: 'Settings' }], tab, (v) => { tab = v; draw(); }),
     content),
   stage,
   h('button', { class: 'preview-fab', type: 'button', onclick: openCanvas }, svg('eye', 18), 'Design your page')));
 
+let drawing = 0;
 async function draw() {
+  const run = ++drawing;
   title.textContent = TITLES[tab];
   const y = scrollY;
-  content.replaceChildren(tab === 'page' ? pageTab() : settingsTab());
+  if (tab === 'insights' && content.dataset.tab !== 'insights') content.replaceChildren(h('p', { class: 'loading' }, 'Loading…'));
+  const view = tab === 'page' ? pageTab() : tab === 'insights' ? await insightsTab(draw) : settingsTab();
+  if (run !== drawing) return; // a newer draw started while stats were loading
+  if (content.dataset.tab !== tab) view.classList.add('tab-enter'); // only a tab switch animates, not a redraw
+  content.replaceChildren(view);
+  content.dataset.tab = tab;
   scrollTo(0, y);
 }
 let previewTimer: ReturnType<typeof setTimeout>;
+/* The next version loads in a second frame behind the current one and replaces it once it is ready,
+   so the preview never flashes blank or jumps while editing. */
+let incoming: HTMLIFrameElement | null = null;
 function updatePreview() {
   if (canvas.busy) return;
-  const y = frame.contentWindow?.scrollY ?? 0;
-  frame.onload = () => { frame.contentWindow?.scrollTo(0, y); if (frame.contentDocument) canvas.mount(frame.contentDocument); };
-  frame.srcdoc = renderPage(state.cfg, { preview: true });
+  incoming?.remove();
+  const next = incoming = newFrame();
+  next.className = 'incoming';
+  next.onload = () => {
+    if (incoming !== next) return;
+    next.contentWindow?.scrollTo(0, frame.contentWindow?.scrollY ?? 0);
+    if (next.contentDocument) canvas.mount(next.contentDocument);
+    frame.remove();
+    next.className = '';
+    frame = next; incoming = null;
+  };
+  next.srcdoc = renderPage(state.cfg, { preview: true });
+  surface.append(next);
 }
 /** Publish stays available (a download may never have been uploaded); a dot shows unpublished changes. */
 function markChanges() { [saveBtn, canvasSave].forEach((b) => b.classList.toggle('has-changes', isDirty())); }
