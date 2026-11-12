@@ -578,7 +578,7 @@ export class VisualCanvas {
     if (this.freeMode || event.shiftKey) { this.freeDrag(event, handle); return; }
     const source = this.element(), selection = this.selection; if (!source || !selection || this.busy) return;
     const doc = this.doc!, win = doc.defaultView!, rect = source.getBoundingClientRect();
-    const ghost = source.cloneNode(true) as HTMLElement; ghost.removeAttribute('data-block-id'); ghost.classList.add('canvas-ghost'); ghost.style.width = `${Math.min(rect.width, win.innerWidth - 16)}px`;
+    const ghost = source.cloneNode(true) as HTMLElement; ghost.removeAttribute('data-block-id'); ghost.removeAttribute('data-free'); ghost.removeAttribute('data-offset'); ghost.style.translate = 'none'; ghost.classList.add('canvas-ghost'); ghost.style.width = `${Math.min(rect.width, win.innerWidth - 16)}px`;
     const marker = doc.createElement('div'); marker.className = 'canvas-drop';
     let destination: ReturnType<typeof dropTarget> = null, x = event.clientX, y = event.clientY, animation = 0, last = 0, moved = false;
     const update = () => {
@@ -603,7 +603,11 @@ export class VisualCanvas {
     };
     this.gesture(event, (e) => { moved ||= Math.hypot(e.clientX - event.clientX, e.clientY - event.clientY) >= 6; x = e.clientX; y = e.clientY; if (moved) update(); }, (cancel) => {
       cancelAnimationFrame(animation); ghost.remove(); marker.remove(); source.classList.remove('canvas-source'); if (this.ui) this.ui.style.opacity = '';
-      if (!cancel && moved && destination) moveBlock(this.o.config(), selection.id, destination.id, destination.after);
+      if (!cancel && moved && destination) {
+        moveBlock(this.o.config(), selection.id, destination.id, destination.after);
+        // An item placed freely before rejoins the layout where it is dropped.
+        const b = this.o.config().blocks.find((x) => x.id === selection.id); if (b) { b.dx = undefined; b.dy = undefined; }
+      }
     }, handle);
     if (this.busy) { doc.body.append(ghost, marker); source.classList.add('canvas-source'); if (this.ui) this.ui.style.opacity = '0'; update(); animation = requestAnimationFrame(tick); }
   }
