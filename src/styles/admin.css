@@ -505,3 +505,13 @@ button.row:active { transition-duration: 0s; }
 @keyframes pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.12); } }
 .publish-status.done svg { animation: pop .5s cubic-bezier(.2,.9,.3,1.2); }
 .publish-status, .publish > * { animation: tab-in .3s ease both; }
+
+/* Tile size presets in the layout editor: a tiny outline of each widget shape. */
+.tile-presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.tile-presets button { display: grid; justify-items: center; gap: 4px; padding: 7px 2px; font-size: 10px; }
+.tile-preset-icon { display: block; border: 1.5px solid currentColor; border-radius: 4px; }
+.preset-small { width: 14px; height: 14px; }
+.preset-medium { width: 30px; height: 14px; }
+.preset-large { width: 22px; height: 22px; margin-top: -4px; margin-bottom: -4px; }
+.preset-banner { width: 30px; height: 8px; margin-block: 3px; }
+.preset-circle { width: 14px; height: 14px; border-radius: 50%; }

@@ -12,6 +12,7 @@ import { buttonShape, buttonStyle, usesButton } from '../../lib/button-shape';
 import { adjustImage } from './image-editor';
 import { shapePicker, stylePicker } from './shape-picker';
 import { tileStylePicker } from './tile-style-picker';
+import { TILE_PRESETS } from '../../lib/tile-style';
 import { socialGlyph } from './social-glyph';
 import { guardTouchScroll, pressToDrag } from './reorder';
 import { h, segmented } from './ui';
@@ -259,7 +260,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined;
+        b.textScale = undefined; b.offset = undefined; b.vertical = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -284,9 +285,21 @@ export class VisualCanvas {
       b.offset = v || undefined; el.style.setProperty('--offset', `${v}px`); el.toggleAttribute('data-offset', !!v);
     }, (v) => `${v > 0 ? '+' : ''}${v}px`);
     const tileStyle = link && safeImg(link.image) && !usesButton(link, this.o.config().look.template)
-      ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Image style'), tileStylePicker(link, this.o.config().look.template, (change) => this.action(change), false)) : null;
+      ? h('div', { class: 'canvas-shapes' },
+        h('p', {}, 'Tile size'),
+        h('div', { class: 'canvas-widths tile-presets' }, TILE_PRESETS.map((p) => h('button', {
+          type: 'button', class: link.tile?.shape === p.shape && this.span() === p.span ? 'on' : '',
+          onclick: () => this.action(() => { link.tile = { ...link.tile, shape: p.shape }; this.applySpan(p.span); }),
+        }, h('span', { class: `tile-preset-icon preset-${p.label.toLowerCase()}`, 'aria-hidden': 'true' }), p.label))),
+        h('p', { style: 'margin-top:10px' }, 'Image style'), tileStylePicker(link, this.o.config().look.template, (change) => this.action(change), false)) : null;
     const textControls = h('div', { class: 'canvas-text-controls' }, ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset]));
-    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(b.type === 'social' ? [this.socialPicker()] : []), ...(nameControls ? [nameControls] : []), ...(shape ? [shape] : []), ...(tileStyle ? [tileStyle] : []), ...(font ? [font] : []),
+    this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(b.type === 'social' ? [this.socialPicker(), h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
+        segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
+          b.vertical = v === 'column' || undefined;
+          el.toggleAttribute('data-vertical', !!b.vertical);
+          if (b.vertical && this.span() > 4) this.applySpan(4); // a column only needs a narrow strip beside other items
+          if (!b.vertical && this.span() <= 4) this.applySpan(12);
+        })))] : []), ...(nameControls ? [nameControls] : []), ...(shape ? [shape] : []), ...(tileStyle ? [tileStyle] : []), ...(font ? [font] : []),
       ...(this.selection?.part === 'name' ? [] : [sizeControl, width, details]));
     if (focus) [...this.o.inspector.querySelectorAll<HTMLInputElement>('input[data-control]')].find((input) => input.dataset.control === focus)?.focus({ preventScroll: true });
   }

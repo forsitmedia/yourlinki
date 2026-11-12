@@ -41,7 +41,7 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'profile') blocks.push(`<section class="profile-block${photo ? '' : ' no-photo'}${cfg.profile.showCover !== false && (cfg.look.template === 'cover' || safeImg(cfg.profile.cover)) ? ' has-cover' : ''}${cfg.profile.showCover !== false && safeImg(cfg.profile.cover) && ['photo', 'studio'].includes(cfg.look.template) ? ' has-independent-cover' : ''}" ${data}>${hero(cfg, photo)}</section>`);
     if (block.type === 'bio' && cfg.profile.bio) blocks.push(bio(cfg, data));
     if (block.type === 'highlights') blocks.push(highlights(cfg, data));
-    if (block.type === 'social') blocks.push(social(cfg, data));
+    if (block.type === 'social') blocks.push(social(cfg, data + (block.vertical ? ' data-vertical' : '')));
     if (block.type === 'youtube') blocks.push(video(block, data));
     if (block.type === 'image') blocks.push(imageBlock(block, data));
     if (block.type === 'post') blocks.push(postCard(block, data));

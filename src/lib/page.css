@@ -422,3 +422,20 @@ p, .bio { text-wrap: pretty; }
 /* Text size chosen per item: the text grows or shrinks, pictures keep their size. */
 .stack [data-text-scale]:is(.bio, .stats, .row-link, .primary, .social),
 .stack [data-text-scale] :is(.identity, .tile > span, .video-copy, .post-copy, .image-card > figcaption) { zoom: var(--text-scale, 1); }
+
+/* Tile shape chosen per link, like phone widgets (lib/tile-style.ts). It wins over the template's shape. */
+.page .tile[data-shape] { --tile-ratio: 4 / 5; aspect-ratio: var(--tile-ratio); align-self: start; }
+.page .tile[data-shape="square"], .page .tile[data-shape="circle"] { --tile-ratio: 1; }
+.page .tile[data-shape="wide"] { --tile-ratio: 2.1; }
+.page .tile[data-shape="banner"] { aspect-ratio: auto; height: 84px; }
+.page .tile[data-shape="circle"], .page .tile[data-shape="circle"] .tile-media { border-radius: 50%; }
+/* Banners and circles read best with the title in the middle, unless another position was chosen. */
+.page .tile:is([data-shape="banner"], [data-shape="circle"]):not([data-text]) span { inset: 0; display: grid; place-items: center; text-align: center; padding: 10px 16px; background: rgba(0,0,0,var(--shade-flat, .3)); }
+/* With the title below, the picture keeps the shape and the title sits under it. */
+.page .tile[data-shape][data-text="below"] { aspect-ratio: auto; height: auto; }
+.page .tile[data-shape][data-text="below"] .tile-media { aspect-ratio: var(--tile-ratio); }
+.page .tile[data-shape="banner"][data-text="below"] .tile-media { aspect-ratio: auto; height: 84px; }
+.page .tile[data-shape="circle"][data-text="below"] { border-radius: 0; }
+
+/* Social icons in a column, to sit beside a tile like a widget. */
+.page .social[data-vertical] { flex-direction: column; flex-wrap: nowrap; align-items: center; justify-content: center; align-self: center; }

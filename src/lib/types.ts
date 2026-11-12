@@ -41,6 +41,8 @@ export type PageBlock = {
   textScale?: number;
   /** Extra space above this item in px; negative pulls it closer to the item above. */
   offset?: number;
+  /** Social icons stacked in a column instead of a row. */
+  vertical?: boolean;
 };
 export type Look = {
   spacing?: number;
@@ -131,7 +133,7 @@ function normalizeBlocks(raw: unknown, links: Link[]): PageBlock[] {
     if (fixed.includes(b.type) || b.type === 'name') { // the name is optional: it exists only when moved apart from the profile
       if (singles.has(b.type)) continue;
       singles.add(b.type);
-      add({ id, type: b.type, hidden: !!b.hidden, ...layout });
+      add({ id, type: b.type, hidden: !!b.hidden, ...layout, ...(b.type === 'social' && b.vertical === true ? { vertical: true } : {}) });
     } else if (b.type === 'link' && links.some((l) => l.id === b.linkId) && !linked.has(b.linkId)) {
       linked.add(b.linkId);
       add({ id, type: 'link', linkId: b.linkId, ...layout });

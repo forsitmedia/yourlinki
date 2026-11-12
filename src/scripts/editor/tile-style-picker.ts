@@ -1,5 +1,5 @@
 /** Photo tile style: text position, shade and text color. Shown only for links that have an image. */
-import { TILE_SHADE, TILE_TEXT, type TileStyle } from '../../lib/tile-style';
+import { TILE_SHADE, TILE_SHAPES, TILE_TEXT, type TileStyle } from '../../lib/tile-style';
 import type { Link, Template } from '../../lib/types';
 import { h, segmented, swatches } from './ui';
 
@@ -14,6 +14,7 @@ export function tileStylePicker(link: Link, template: Template, update: (change:
   const set = (patch: Partial<TileStyle>, redraw = true) => update(() => { link.tile = { ...link.tile, ...patch }; }, redraw);
   const row = (label: string, control: Node) => h('div', { class: 'tile-style-row' }, h('span', {}, label), control);
   return h('div', { class: 'tile-style' },
+    row('Shape', segmented(TILE_SHAPES.map((o) => ({ ...o })), style.shape ?? ('' as TileStyle['shape'] & string), (v) => set({ shape: v }))),
     row('Text', segmented(TILE_TEXT.map((o) => ({ ...o })), text, (v) => set({ text: v }))),
     text !== 'below' && text !== 'none' && row('Shade', segmented(TILE_SHADE.map((o) => ({ ...o })), style.shade ?? ('' as TileStyle['shade'] & string), (v) => set({ shade: v }))),
     text !== 'none' && row('Text color', swatches(['', '#ffffff', '#111111'], style.color ?? '', (v) => set({ color: v || undefined }, false), liveColor)),
