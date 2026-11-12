@@ -5,6 +5,7 @@ import { tileAttributes, tileTextStyle } from './tile-style';
 import { socialKey } from './social-order';
 import { bounded, designStyle, normalizeBlockDesign, sizeTier } from './layout';
 import { icon } from './icons';
+import { shapeSvg } from './shapes';
 import { platform } from './platforms';
 import { youtubeVideo, youtubeCover, postUrl, postSource, videoRatio } from './media';
 import { isVisible, safeUrl, safeImg, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
@@ -57,6 +58,7 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'social') blocks.push(social(cfg, data + (block.vertical ? ' data-vertical' : '') + (block.part ? ' data-part' : ''), block.part));
     if (block.type === 'text' && block.title?.trim()) blocks.push(textBlock(block, data));
     if (block.type === 'credentials') blocks.push(credentials(block, data));
+    if (block.type === 'shape') blocks.push(`<div class="deco"${block.deco?.motion ? ` data-motion="${esc(block.deco.motion)}"` : ''} ${data}>${shapeSvg(block.deco ?? {}, block.id)}</div>`);
     if (block.type === 'youtube') blocks.push(video(block, data));
     if (block.type === 'image') blocks.push(imageBlock(block, data));
     if (block.type === 'post') blocks.push(postCard(block, data));

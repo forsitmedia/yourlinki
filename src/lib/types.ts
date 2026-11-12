@@ -4,6 +4,7 @@ import { bounded, normalizeBlockDesign, type BlockDesign } from './layout';
 import { normalizeButtonShape, normalizeButtonStyle, type ButtonShape, type ButtonStyle } from './button-shape';
 import { normalizeSocials, socialKey } from './social-order';
 import { normalizeTileStyle, type TileStyle } from './tile-style';
+import { SHAPES, SHAPE_COLORS, SHAPE_MOTIONS, type ShapeMotion } from './shapes';
 
 export type Link = {
   id: string;
@@ -39,7 +40,9 @@ export type Template = typeof TEMPLATE_IDS[number];
 export type PageBlock = {
   id: string;
   design?: BlockDesign;
-  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials';
+  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape';
+  /** Shape items: which drawing, its colors, outline, rotation and motion. */
+  deco?: { shape: string; color: string; outline?: boolean; rotate?: number; motion?: ShapeMotion };
   /** Credentials items: the entries and how they are laid out. */
   entries?: Credential[];
   variant?: typeof CREDENTIAL_LAYOUTS[number];
@@ -176,6 +179,12 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
         kind: CREDENTIAL_KINDS.some((k) => k.value === e.kind) ? e.kind : 'degree', title: str(e.title, 120), org: str(e.org, 120), year: str(e.year, 30),
         ...(safeImg(e.logo) ? { logo: e.logo } : {}), ...(typeof e.url === 'string' && e.url ? { url: e.url.slice(0, 500) } : {}) }));
       add({ id, type: 'credentials', ...layout, title: str(b.title, 60), entries, hidden: !!b.hidden, ...(CREDENTIAL_LAYOUTS.includes(b.variant) ? { variant: b.variant } : {}) });
+    } else if (b.type === 'shape') {
+      const d = b.deco && typeof b.deco === 'object' ? b.deco : {};
+      const rotate = bounded(d.rotate, 0, 359);
+      add({ id, type: 'shape', ...layout, hidden: !!b.hidden, deco: {
+        shape: SHAPES.some((s) => s.id === d.shape) ? d.shape : SHAPES[0].id, color: SHAPE_COLORS.some((c) => c.id === d.color) ? d.color : 'sunset',
+        ...(d.outline === true ? { outline: true } : {}), ...(rotate ? { rotate: Math.round(rotate) } : {}), ...(SHAPE_MOTIONS.includes(d.motion) && d.motion !== 'none' ? { motion: d.motion } : {}) } });
     } else if (b.type === 'text') {
       add({ id, type: 'text', ...layout, title: typeof b.title === 'string' ? b.title : '', hidden: !!b.hidden,
         ...(TEXT_STYLES.includes(b.textStyle) ? { textStyle: b.textStyle } : {}), ...(NAME_ALIGN.includes(b.textAlign) ? { textAlign: b.textAlign } : {}) });

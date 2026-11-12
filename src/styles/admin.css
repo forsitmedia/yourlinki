@@ -527,3 +527,12 @@ button.row:active { transition-duration: 0s; }
 .card-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .fill-card-solid .shape-sample { border-radius: 7px; border-color: transparent; background: color-mix(in srgb, currentColor 55%, transparent); }
 .fill-none .shape-sample { border-radius: 7px; border-style: dashed; opacity: .5; }
+
+/* Shape picker. */
+.shape-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 8px; width: 100%; }
+.shape-cell { aspect-ratio: 1; border-radius: 12px; background: var(--fill); display: grid; place-items: center; padding: 8px; color: var(--text, #000); }
+.shape-cell.on { outline: 2px solid var(--blue); outline-offset: -2px; }
+.shape-thumb, .shape-thumb svg { display: block; width: 100%; height: 100%; }
+.shape-colors { display: flex; flex-wrap: wrap; gap: 10px; }
+.shape-color { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 1px #0002; color: var(--text, #000); }
+.shape-color.on { outline: 2px solid var(--blue); outline-offset: 3px; }

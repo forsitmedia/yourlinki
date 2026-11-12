@@ -163,7 +163,7 @@ export class VisualCanvas {
     if (this.selection?.part === 'photo') return 'Photo or logo';
     if (this.selection?.part === 'name') return 'Name';
     if (b.type === 'link') return cfg.links.find((l) => l.id === b.linkId)?.title || 'Link';
-    return b.title || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials' }[b.type]);
+    return b.title || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials', shape: 'Shape' }[b.type]);
   }
   private image() {
     const cfg = this.o.config(), b = this.block();
@@ -283,7 +283,7 @@ export class VisualCanvas {
       h('button', { type: 'button', onclick: () => this.select({ id: b.id, part: 'photo' }) }, 'Photo / logo'),
       this.element()?.querySelector('[data-profile-part="name"]') && h('button', { type: 'button', onclick: () => this.select({ id: b.id, part: 'name' }) }, 'Name'),
       h('button', { type: 'button', onclick: () => this.element()?.querySelector('[data-profile-part=\"cover\"]') ? this.select({ id: b.id, part: 'cover' }) : this.o.edit(b.id) }, this.o.config().profile.cover ? 'Cover' : '+ Cover')) : null;
-    const font = !this.selection?.part || this.selection.part === 'name' ? this.fontPicker(b) : null;
+    const font = b.type !== 'shape' && (!this.selection?.part || this.selection.part === 'name') ? this.fontPicker(b) : null;
     const nameControls = b.type === 'name' || this.selection?.part === 'name' ? this.nameControls(b.type === 'name') : null;
     const link = b.type === 'link' ? this.o.config().links.find((l) => l.id === b.linkId) : undefined;
     const shape = link && usesButton(link, this.o.config().look.template) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Button shape'),

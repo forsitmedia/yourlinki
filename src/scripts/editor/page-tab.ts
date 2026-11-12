@@ -67,6 +67,7 @@ export function pageTab(): HTMLElement {
     if (b.type === 'profile') return { title: 'Profile', subtitle: extra('Photo, name & username'), icon: 'person', image: safeImg(cfg.profile.photo), hidden };
     if (b.type === 'name') return { title: 'Name', subtitle: extra([cfg.profile.name, cfg.profile.handle && '@' + cfg.profile.handle].filter(Boolean).join(' · ')), icon: 'text', hidden };
     if (b.type === 'bio') return { title: 'Bio', subtitle: extra(cfg.profile.bio || 'Add a few words about you'), icon: 'text', hidden };
+    if (b.type === 'shape') return { title: 'Shape', subtitle: extra(`${b.deco?.shape ?? 'blob'} · ${b.deco?.color ?? ''}`), icon: 'star', hidden };
     if (b.type === 'credentials') return { title: b.title || 'Credentials', subtitle: extra((b.entries ?? []).map((e) => e.title).filter(Boolean).join(' · ') || 'Add your degrees and awards'), icon: 'cap', hidden };
     if (b.type === 'text') return { title: b.title?.trim().split('\n')[0] || 'Text', subtitle: extra({ title: 'Title', subtitle: 'Subtitle', body: 'Text', small: 'Label' }[b.textStyle ?? 'body']), icon: 'text', hidden };
     if (b.type === 'highlights' && b.part) { const x = cfg.highlights[Number(b.part)]; return { title: [x?.value, x?.label].filter(Boolean).join(' ') || 'Highlight', subtitle: extra('One highlight'), icon: 'star', hidden }; }

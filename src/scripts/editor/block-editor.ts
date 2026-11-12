@@ -9,6 +9,7 @@ import { state, changed, onChange, uid } from './state';
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
 import { BOLD } from '../../lib/render';
+import { SHAPES, SHAPE_COLORS, shapeSvg } from '../../lib/shapes';
 import { linkSheet, socialSheet, mediaSheet, postSheet } from './sheets';
 import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast, dangerRow } from './ui';
 
@@ -21,6 +22,7 @@ export function editPageBlock(id: string) {
   if (block.type === 'post') return postSheet(block);
   if (block.type === 'text') return textSheet(block);
   if (block.type === 'credentials') return credentialsSheet(block);
+  if (block.type === 'shape') return shapeSheet(block);
   if (block.type === 'name') return editPageBlock(cfg.blocks.find((b) => b.type === 'profile')!.id); // the name is edited with the profile
   const titles: Record<string, string> = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
   const body = h('div');
@@ -278,6 +280,49 @@ export function addCredentials() {
   credentialsSheet(block, true);
 }
 
+/** A decorative drawing: pick the shape, its colors, outline, rotation and motion. */
+export function shapeSheet(block: PageBlock, isNew = false) {
+  const cfg = state.cfg;
+  let deleted = false;
+  block.deco ??= { shape: 'blob', color: 'sunset' };
+  const deco = block.deco;
+  const body = h('div');
+  const picture = (html: string) => { const el = h('span', { class: 'shape-thumb' }); el.innerHTML = html; return el; };
+  const draw = () => body.replaceChildren(
+    group({ header: 'Shape' }, h('div', { class: 'row stacked' }, h('div', { class: 'shape-grid' }, SHAPES.map((s) => h('button', {
+      type: 'button', class: 'shape-cell' + (deco.shape === s.id ? ' on' : ''), 'aria-label': s.label, 'aria-pressed': String(deco.shape === s.id), title: s.label,
+      onclick: () => { deco.shape = s.id; changed(); draw(); },
+    }, picture(shapeSvg({ ...deco, shape: s.id, rotate: 0 }, `pick-${s.id}`))))))),
+    group({ header: 'Color' }, h('div', { class: 'row stacked' }, h('div', { class: 'shape-colors' }, SHAPE_COLORS.map((c) => h('button', {
+      type: 'button', class: 'shape-color' + (deco.color === c.id ? ' on' : ''), 'aria-label': `${c.label} color`, 'aria-pressed': String(deco.color === c.id), title: c.label,
+      style: c.stops ? `background:linear-gradient(135deg,${c.stops[0]},${c.stops[1]})` : 'background:currentColor',
+      onclick: () => { deco.color = c.id; changed(); draw(); },
+    }))))),
+    !SHAPES.find((s) => s.id === deco.shape)?.line ? group({}, switchRow('Outline only', !!deco.outline, (v) => { deco.outline = v || undefined; changed(); draw(); })) : document.createDocumentFragment(),
+    group({ header: 'Rotation' }, h('label', { class: 'row image-range' },
+      h('span', { class: 'image-range-label' }, 'Turn', h('output', {}, `${deco.rotate ?? 0}°`)),
+      h('input', { type: 'range', min: 0, max: 359, step: 1, value: deco.rotate ?? 0, 'aria-label': 'Rotation', oninput: (e: Event) => {
+        const v = Number((e.target as HTMLInputElement).value); deco.rotate = v || undefined;
+        (e.target as HTMLElement).parentElement!.querySelector('output')!.textContent = `${v}°`; changed();
+      } }))),
+    group({ header: 'Motion', footer: 'A slow, gentle movement. Visitors who turned off motion on their phone see it still.' }, h('div', { class: 'row stacked' },
+      segmented([{ value: 'none', label: 'Still' }, { value: 'spin', label: 'Spin' }, { value: 'float', label: 'Float' }, { value: 'pulse', label: 'Pulse' }], deco.motion ?? 'none', (v) => { deco.motion = v === 'none' ? undefined : v; changed(); }))),
+    group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
+    group({}, dangerRow('Delete Shape', () => {
+      if (!isNew && !confirm('Delete this shape?')) return;
+      deleted = true;
+      cfg.blocks = cfg.blocks.filter((b) => b.id !== block.id);
+      close();
+    })));
+  draw();
+  const close = sheet(isNew ? 'New Shape' : 'Edit Shape', () => [body], { onClose: () => changed(true) });
+}
+export function addShape() {
+  const block: PageBlock = { id: `shape:${uid()}`, type: 'shape', deco: { shape: 'sparkle', color: 'sunset' }, design: { span: 4, align: 'auto' } };
+  state.cfg.blocks.push(block); changed(true);
+  shapeSheet(block, true);
+}
+
 export function addTextItem() {
   const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
   state.cfg.blocks.push(block); changed(true);
@@ -293,6 +338,7 @@ export function addItemMenu() {
         state.cfg.links.push(link); state.cfg.blocks.push({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
       } }),
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
+      navRow({ lead: svg('star'), title: 'Shape', subtitle: 'Abstract drawings and doodles', onClick: () => { close(); addShape(); } }),
       navRow({ lead: svg('cap'), title: 'Credentials', subtitle: 'Degrees, certificates, awards, work', onClick: () => { close(); addCredentials(); } }),
       navRow({ lead: svg('post'), title: 'Post Preview', subtitle: 'Cover, title and excerpt', onClick: () => { close(); addMediaItem('post'); } }),
       navRow({ lead: svg('play'), title: 'YouTube Video', subtitle: 'Automatic cover and video player', onClick: () => { close(); addMediaItem('youtube'); } }),
