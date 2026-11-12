@@ -92,6 +92,8 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (offset) { styles.push(`--offset:${Math.round(offset)}px`); extra += ' data-offset'; }
   const inset = bounded(block.inset, 0, 80);
   if (inset) { styles.push(`--inset:${Math.round(inset)}px`); extra += ' data-inset'; }
+  const height = bounded(block.height, 24, 900);
+  if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   if (block.type === 'profile' && cfg) {
     const size = bounded(cfg.profile.photoSize, 48, 180);
     const height = bounded(cfg.profile.coverHeight, 100, 540);

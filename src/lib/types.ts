@@ -48,6 +48,8 @@ export type PageBlock = {
   offset?: number;
   /** Extra space on both sides of this item, in px. */
   inset?: number;
+  /** Height chosen by stretching the item from its top or bottom edge, in px. */
+  height?: number;
   /** Social icons stacked in a column instead of a row. */
   vertical?: boolean;
 };
@@ -142,9 +144,9 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     if (!b || typeof b !== 'object') continue;
     const id = typeof b.id === 'string' && b.id ? b.id : `item:${result.length}`;
     const design = normalizeBlockDesign(b.design);
-    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80);
+    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900);
     const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
-      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}) };
+      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}) };
     if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
       const key = `${b.type}:${b.part}`;
       if (singles.has(b.type) || parts.has(key)) continue;

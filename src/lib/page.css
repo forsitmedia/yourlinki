@@ -463,3 +463,12 @@ body[data-margin]:not(.template-studio):not(.template-bold) .stack > .profile-bl
 .text-title strong { font-weight: 800; }
 .text-block u, .bio u { text-decoration-thickness: .07em; text-underline-offset: .14em; }
 .text-block s, .bio s { text-decoration-thickness: .07em; opacity: .75; }
+
+/* Height chosen by stretching an item in the layout editor. Text starts at the top; icons and numbers stay centered. */
+.stack [data-height] { height: var(--h) !important; min-height: 0 !important; aspect-ratio: auto !important; align-self: start; box-sizing: border-box; }
+.stack .social[data-height] { align-content: center; align-items: center; }
+.stack .social[data-height]:not([data-vertical]) { justify-content: center; }
+.stack .social[data-vertical][data-height] { justify-content: space-evenly; }
+.stack .stats[data-height] { align-items: center; }
+.stack .tile[data-height][data-text="below"] .tile-media { flex: 1; aspect-ratio: auto !important; }
+.stack .video-card[data-height], .stack .post-card[data-height], .stack .image-card[data-height] { overflow: hidden; }

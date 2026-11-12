@@ -43,11 +43,16 @@ export class VisualCanvas {
     const win = doc.defaultView!;
     const style = doc.createElement('style'); style.textContent = css; doc.head.append(style);
     const ui = doc.createElement('div'); ui.className = 'canvas-ui';
-    ui.innerHTML = `<button type="button" class="canvas-drag" aria-label="Drag selected item" title="Drag to reorder">${icon('grip', 17)}</button><button type="button" class="canvas-edit" aria-label="Edit selected item">Edit</button><button type="button" class="canvas-resize" aria-label="Resize selected item" title="Drag to resize, double-click to reset">${icon('arrow', 13)}</button>`;
+    ui.innerHTML = `<button type="button" class="canvas-drag" aria-label="Drag selected item" title="Drag to reorder">${icon('grip', 17)}</button><button type="button" class="canvas-edit" aria-label="Edit selected item">Edit</button><button type="button" class="canvas-resize" aria-label="Resize selected item from its right side" title="Drag to change the width, double-click to reset"></button>`
+      + ['left', 'top', 'bottom'].map((side) => `<button type="button" class="canvas-side" data-side="${side}" aria-label="Stretch selected item from its ${side} side" title="${side === 'left' ? 'Drag to change the width' : 'Drag to change the height'}, double-click to reset"></button>`).join('');
     doc.body.append(ui); this.ui = ui;
     ui.querySelector('.canvas-drag')!.addEventListener('pointerdown', (e) => this.drag(e as PointerEvent));
     ui.querySelector('.canvas-resize')!.addEventListener('pointerdown', (e) => this.resize(e as PointerEvent));
     ui.querySelector('.canvas-resize')!.addEventListener('dblclick', () => this.resetSize());
+    ui.querySelectorAll<HTMLElement>('.canvas-side').forEach((handle) => {
+      handle.addEventListener('pointerdown', (e) => this.stretch(e as PointerEvent, handle.dataset.side as 'left' | 'top' | 'bottom'));
+      handle.addEventListener('dblclick', () => handle.dataset.side === 'left' ? this.resetSize() : this.action(() => { const b = this.block(); if (b) b.height = undefined; }));
+    });
     ui.querySelector('.canvas-edit')!.addEventListener('click', () => this.editSelection());
     const socialStarts = [...doc.querySelectorAll<HTMLElement>('.social:not([data-part]) [data-social-id]')].map((el) => {
       const start = (e: PointerEvent) => {
@@ -141,7 +146,9 @@ export class VisualCanvas {
     this.ui.classList.toggle('is-social', !!this.selection?.socialId);
     if (!this.enabled || !target) return;
     target.classList.add(this.selection?.part || this.selection?.socialId ? 'canvas-part-selected' : 'canvas-selected');
-    this.ui.querySelector<HTMLElement>('.canvas-resize')!.hidden = !!this.selection?.socialId || this.selection?.part === 'name';
+    const noResize = !!this.selection?.socialId || this.selection?.part === 'name';
+    this.ui.querySelector<HTMLElement>('.canvas-resize')!.hidden = noResize;
+    this.ui.querySelectorAll<HTMLElement>('.canvas-side').forEach((handle) => { handle.hidden = noResize || !!this.selection?.part; }); // photo and cover use the right handle
     const rect = target.getBoundingClientRect(), win = this.doc.defaultView!;
     const left = Math.max(5, rect.left);
     this.ui.style.left = `${left + win.scrollX}px`; this.ui.style.top = `${rect.top + win.scrollY}px`;
@@ -181,7 +188,8 @@ export class VisualCanvas {
   }
   private applySpan(value: number) {
     const b = this.block(), el = this.element(); if (!b || !el) return;
-    b.design = { span: Math.round(bounded(value, 2, 12) ?? 12), align: b.design?.align ?? 'auto' };
+    const span = Math.round(bounded(value, 2, 12) ?? 12);
+    b.design = { span, align: b.design?.align ?? 'auto', ...(b.design?.start ? { start: Math.min(b.design.start, 13 - span) } : {}) };
     el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
     const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size; // text scales live while resizing
     this.position();
@@ -264,7 +272,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.vertical = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -403,6 +411,30 @@ export class VisualCanvas {
     this.gesture(event, (e) => {
       if (part) this.setProfileSize(avatar ? rect.width + (e.clientX - x + e.clientY - y) / 2 : rect.height + e.clientY - y, avatar);
       else { const value = span + (e.clientX - x) / width * 12; this.applySpan(value > 11.2 ? 12 : value); } // full width is easy to hit again
+    }, () => {});
+  }
+  /** Side handles: the left one changes the width keeping the right edge in place; top and bottom change the height.
+   * Pulling the top edge keeps the bottom edge in place (the item grows upwards). */
+  private stretch(event: PointerEvent, side: 'left' | 'top' | 'bottom') {
+    const b = this.block(), el = this.element(); if (!b || !el || this.selection?.part) return;
+    const stack = this.doc!.querySelector<HTMLElement>('.stack')!, win = this.doc!.defaultView!;
+    const x = event.clientX, y = event.clientY, rect = el.getBoundingClientRect();
+    const pad = parseFloat(win.getComputedStyle(stack).paddingLeft) || 0, gap = parseFloat(win.getComputedStyle(stack).columnGap) || 0;
+    const column = (stack.clientWidth - pad * 2 + gap) / 12;
+    const span = this.span(), start = Math.max(1, Math.min(13 - span, Math.round((rect.left - stack.getBoundingClientRect().left - pad) / column) + 1)), end = start + span - 1;
+    const height = rect.height, offset = b.offset ?? 0;
+    this.gesture(event, (e) => {
+      if (side === 'left') {
+        const first = Math.max(1, Math.min(end - 1, Math.round(start + (e.clientX - x) / column)));
+        b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
+        el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
+        const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size;
+      } else {
+        const dy = e.clientY - y, value = Math.round(Math.max(24, Math.min(900, side === 'bottom' ? height + dy : height - dy)));
+        b.height = value; el.style.setProperty('--h', `${value}px`); el.setAttribute('data-height', '');
+        if (side === 'top') { const moved = offset - (value - height); b.offset = moved || undefined; el.style.setProperty('--offset', `${moved}px`); el.toggleAttribute('data-offset', !!moved); }
+      }
+      this.position();
     }, () => {});
   }
   /** Double-clicking the resize handle returns the selection to its template size. */
