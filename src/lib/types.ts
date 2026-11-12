@@ -46,11 +46,15 @@ export type PageBlock = {
   textScale?: number;
   /** Extra space above this item in px; negative pulls it closer to the item above. */
   offset?: number;
+  /** Extra space on both sides of this item, in px. */
+  inset?: number;
   /** Social icons stacked in a column instead of a row. */
   vertical?: boolean;
 };
 export type Look = {
   spacing?: number;
+  /** Space between the page edges and its items, in px. */
+  margin?: number;
   template: Template;
   /** 'auto' follows each visitor's phone setting. */
   mode: 'dark' | 'light' | 'auto';
@@ -90,6 +94,7 @@ export function normalize(raw: any = {}): Config {
   if (!TEMPLATE_IDS.includes(look.template)) look.template = 'photo';
   if (!['dark', 'light', 'auto'].includes(look.mode)) look.mode = 'dark';
   if ('spacing' in look) look.spacing = bounded(look.spacing, 8, 36);
+  if ('margin' in look) look.margin = bounded(look.margin, 0, 60);
   return {
     onboarded: !!c.onboarded,
     profile: { name: '', handle: '', bio: '', photo: null, cover: null, ...c.profile,
@@ -137,9 +142,9 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     if (!b || typeof b !== 'object') continue;
     const id = typeof b.id === 'string' && b.id ? b.id : `item:${result.length}`;
     const design = normalizeBlockDesign(b.design);
-    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120);
+    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80);
     const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
-      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}) };
+      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}) };
     if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
       const key = `${b.type}:${b.part}`;
       if (singles.has(b.type) || parts.has(key)) continue;

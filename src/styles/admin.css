@@ -515,3 +515,9 @@ button.row:active { transition-duration: 0s; }
 .preset-large { width: 22px; height: 22px; margin-top: -4px; margin-bottom: -4px; }
 .preset-banner { width: 30px; height: 8px; margin-block: 3px; }
 .preset-circle { width: 14px; height: 14px; border-radius: 50%; }
+
+/* Bold / italic / underline / crossed-out buttons over text boxes. */
+.format-bar { display: flex; align-items: center; gap: 6px; width: 100%; }
+.format-button { width: 36px; height: 32px; border-radius: 8px; background: var(--fill); color: var(--text, inherit); font-size: 15px; }
+.format-button:active { background: var(--blue); color: #fff; }
+.format-hint { margin-left: auto; font-size: 11px; color: var(--sec); }

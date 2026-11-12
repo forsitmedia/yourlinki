@@ -90,6 +90,7 @@ export function lookVars(look: Look): string {
   return css({
     '--page-gap': `${typeof look.spacing === 'number' ? Math.max(8, Math.min(36, look.spacing)) : ['studio', 'bold'].includes(look.template) ? 20 : look.template === 'gallery' ? 14 : 18}px`,
     '--font': FONTS[look.font] ?? FONTS.system,
+    ...(typeof look.margin === 'number' ? { '--page-margin': `${Math.max(0, Math.min(60, look.margin))}px` } : {}),
   });
 }
 

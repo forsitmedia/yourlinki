@@ -14,6 +14,17 @@ type Opts = { now?: number; preview?: boolean };
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
+/** Simple marks people can type or add with the editor's buttons: **bold**, *italic*, __underline__, ~~crossed out~~. */
+export function rich(text: string): string {
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/gs, '<strong>$1</strong>')
+    .replace(/__(.+?)__/gs, '<u>$1</u>')
+    .replace(/~~(.+?)~~/gs, '<s>$1</s>')
+    .replace(/\*(.+?)\*/gs, '<em>$1</em>');
+}
+/** The same text without the marks, for places that can't show them (search results, link previews). */
+export const plain = (text: string) => text.replace(/\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(.+?)\*/gs, (_, a, b, c, d) => a ?? b ?? c ?? d);
+
 /** One renderer for the public page and the editor's live preview.
  * The public page is a single static file: it embeds its own config, so the editor can reopen it,
  * and leaves scheduled links in place for SCHEDULE_SCRIPT to show or hide at visit time. */
@@ -53,12 +64,12 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 ${themeColorMeta(cfg.look)}
 <title>${esc(cfg.profile.name)}</title>
-<meta name="description" content="${esc(cfg.profile.bio)}">
-<meta property="og:title" content="${esc(cfg.profile.name)}"><meta property="og:description" content="${esc(cfg.profile.bio)}">
+<meta name="description" content="${esc(plain(cfg.profile.bio))}">
+<meta property="og:title" content="${esc(cfg.profile.name)}"><meta property="og:description" content="${esc(plain(cfg.profile.bio))}">
 ${photo.startsWith('https:') ? `<meta property="og:image" content="${esc(photo)}">` : ''}
 <link rel="icon" href="favicon.ico" sizes="32x32"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>${css}${lookColors(cfg.look)}</style>
-</head><body class="template-${cfg.look.template}${preview ? '' : ' intro'}" style="${esc(lookVars(cfg.look))}">
+</head><body class="template-${cfg.look.template}${preview ? '' : ' intro'}"${typeof cfg.look.margin === 'number' ? ' data-margin' : ''} style="${esc(lookVars(cfg.look))}">
 <div class="backdrop">${photoBg ? `<img src="${esc(backgroundImage)}" alt="">` : ''}</div>
 <main class="page">
 <button class="share glass" aria-label="Share">${icon('share', 18)}</button>
@@ -79,6 +90,8 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   const scale = bounded(block.textScale, .6, 2), offset = bounded(block.offset, -80, 120);
   if (scale && scale !== 1) { styles.push(`--text-scale:${scale}`); extra += ' data-text-scale'; }
   if (offset) { styles.push(`--offset:${Math.round(offset)}px`); extra += ' data-offset'; }
+  const inset = bounded(block.inset, 0, 80);
+  if (inset) { styles.push(`--inset:${Math.round(inset)}px`); extra += ' data-inset'; }
   if (block.type === 'profile' && cfg) {
     const size = bounded(cfg.profile.photoSize, 48, 180);
     const height = bounded(cfg.profile.coverHeight, 100, 540);
@@ -119,17 +132,17 @@ function identity(cfg: Config): string {
 export const isShortBio = (text: string) => text.trim().length <= 90 && !text.includes('\n');
 
 function bio(cfg: Config, data: string): string {
-  if (isShortBio(cfg.profile.bio)) return `<p class="bio tagline"${cfg.profile.nameAlign ? ` data-align="${esc(cfg.profile.nameAlign)}"` : ''} ${data}>${esc(cfg.profile.bio.trim())}</p>`;
+  if (isShortBio(cfg.profile.bio)) return `<p class="bio tagline"${cfg.profile.nameAlign ? ` data-align="${esc(cfg.profile.nameAlign)}"` : ''} ${data}>${rich(cfg.profile.bio.trim())}</p>`;
   return cfg.look.template === 'minimal'
-    ? `<section class="bio glass" ${data}><h2>About me</h2><p>${esc(cfg.profile.bio)}</p></section>`
-    : `<p class="bio glass" ${data}>${esc(cfg.profile.bio)}</p>`;
+    ? `<section class="bio glass" ${data}><h2>About me</h2><p>${rich(cfg.profile.bio)}</p></section>`
+    : `<p class="bio glass" ${data}>${rich(cfg.profile.bio)}</p>`;
 }
 
 /** A free text item: a title, subtitle, paragraph or small label. Line breaks are kept. */
 function textBlock(block: PageBlock, data: string): string {
   const style = block.textStyle ?? 'body';
   const tag = style === 'title' ? 'h2' : style === 'subtitle' ? 'h3' : 'p';
-  return `<${tag} class="text-block text-${style}"${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}>${esc(block.title!.trim())}</${tag}>`;
+  return `<${tag} class="text-block text-${style}"${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}>${rich(block.title!.trim())}</${tag}>`;
 }
 
 function highlights(cfg: Config, data: string, part?: string): string {

@@ -24,7 +24,7 @@ export function editPageBlock(id: string) {
   const body = h('div');
   const build = () => h('div', {},
     block.type === 'profile' ? profileGroup() :
-    block.type === 'bio' ? group({}, textareaRow(cfg.profile.bio, (v) => { cfg.profile.bio = v; changed(); }, 'A few words about you')) :
+    block.type === 'bio' ? group({}, ...withFormatBar(textareaRow(cfg.profile.bio, (v) => { cfg.profile.bio = v; changed(); }, 'A few words about you'))) :
     block.type === 'social' ? socialGroup() : highlightsGroup(),
     group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })));
   body.append(build());
@@ -143,6 +143,26 @@ export function addMediaItem(type: 'youtube' | 'image' | 'post') {
   state.cfg.blocks.push(block); changed(true);
   if (type === 'post') postSheet(block, true); else mediaSheet(block, true);
 }
+/** B / I / U / S buttons over a text box: they wrap the selected words in marks (see rich() in render.ts), or remove them. */
+export function formatBar(area: HTMLElement) {
+  const box = area.querySelector('textarea')!;
+  const wrap = (mark: string) => {
+    const { selectionStart: a, selectionEnd: b, value } = box;
+    const before = value.slice(0, a), picked = value.slice(a, b), after = value.slice(b);
+    const marked = before.endsWith(mark) && after.startsWith(mark);
+    if (marked) { box.value = before.slice(0, -mark.length) + picked + after.slice(mark.length); box.setSelectionRange(a - mark.length, b - mark.length); }
+    else { box.value = before + mark + (picked || 'text') + mark + after; box.setSelectionRange(a + mark.length, a + mark.length + (picked || 'text').length); }
+    box.focus();
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const button = (mark: string, label: string, title: string, style: string) => h('button', { type: 'button', class: 'format-button', title, 'aria-label': title, style,
+    onmousedown: (e: Event) => e.preventDefault(), onclick: () => wrap(mark) }, label);
+  return h('div', { class: 'format-bar' },
+    button('**', 'B', 'Bold', 'font-weight:700'), button('*', 'I', 'Italic', 'font-style:italic;font-family:Georgia,serif'),
+    button('__', 'U', 'Underline', 'text-decoration:underline'), button('~~', 'S', 'Crossed out', 'text-decoration:line-through'),
+    h('span', { class: 'format-hint' }, 'Select words, then tap a style'));
+}
+
 export const TEXT_STYLE_OPTIONS: { value: TextStyle; label: string }[] = [
   { value: 'title', label: 'Title' }, { value: 'subtitle', label: 'Subtitle' }, { value: 'body', label: 'Text' }, { value: 'small', label: 'Label' }];
 
@@ -153,7 +173,7 @@ export function textSheet(block: PageBlock, isNew = false) {
   const body = h('div');
   const draw = () => body.replaceChildren(
     group({ footer: 'Line breaks are kept. Size, font and spacing can be changed on the page in Edit layout.' },
-      textareaRow(block.title ?? '', (v) => { block.title = v; changed(); }, 'Write anything: a heading, a note, a quote…', 600)),
+      ...withFormatBar(textareaRow(block.title ?? '', (v) => { block.title = v; changed(); }, 'Write anything: a heading, a note, a quote…', 600))),
     group({ header: 'Style' }, h('div', { class: 'row stacked' }, segmented(TEXT_STYLE_OPTIONS, block.textStyle ?? 'body', (v) => { block.textStyle = v; changed(); }))),
     group({ header: 'Alignment' }, h('div', { class: 'row stacked' }, segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), block.textAlign ?? 'center', (v) => { block.textAlign = v; changed(); }))),
     group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
@@ -170,6 +190,8 @@ export function textSheet(block: PageBlock, isNew = false) {
   } });
   setTimeout(() => body.querySelector('textarea')?.focus(), 50);
 }
+const withFormatBar = (area: HTMLElement) => [h('div', { class: 'row stacked' }, formatBar(area)), area];
+
 export function addTextItem() {
   const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
   state.cfg.blocks.push(block); changed(true);

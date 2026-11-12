@@ -215,7 +215,10 @@ export class VisualCanvas {
     const b = this.block(), el = this.element();
     if (!b || !el) {
       this.o.inspector.replaceChildren(tools, h('p', { class: 'canvas-help' }, 'Drag any item to move it (on a phone, press and hold first). Tap an item, then drag its corner to resize it; double-click the corner to reset.'),
-        this.range('Page spacing', this.o.config().look.spacing ?? 18, 8, 36, 1, (v) => { this.o.config().look.spacing = v; this.doc?.body.style.setProperty('--page-gap', `${v}px`); }, (v) => `${v}px`));
+        this.range('Page spacing', this.o.config().look.spacing ?? 18, 8, 36, 1, (v) => { this.o.config().look.spacing = v; this.doc?.body.style.setProperty('--page-gap', `${v}px`); }, (v) => `${v}px`),
+        this.range('Side margins', this.o.config().look.margin ?? (['studio', 'bold'].includes(this.o.config().look.template) ? 24 : 20), 0, 60, 1, (v) => {
+          this.o.config().look.margin = v; this.doc?.body.style.setProperty('--page-margin', `${v}px`); this.doc?.body.setAttribute('data-margin', '');
+        }, (v) => `${v}px`));
       return;
     }
     if (b.type === 'social' && this.selection?.socialId) {
@@ -261,7 +264,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.vertical = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.vertical = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -306,7 +309,10 @@ export class VisualCanvas {
       segmented(TEXT_STYLE_OPTIONS, b.textStyle ?? 'body', (v) => this.action(() => { b.textStyle = v; })),
       h('p', { style: 'margin-top:10px' }, 'Alignment'),
       segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), b.textAlign ?? 'center', (v) => this.action(() => { b.textAlign = v; }))) : null;
-    const textControls = h('div', { class: 'canvas-text-controls' }, ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset]));
+    const inset = this.range('Side inset', b.inset ?? 0, 0, 80, 1, (v) => {
+      b.inset = v || undefined; el.style.setProperty('--inset', `${v}px`); el.toggleAttribute('data-inset', !!v);
+    }, (v) => `${v}px`);
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]));
     this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
