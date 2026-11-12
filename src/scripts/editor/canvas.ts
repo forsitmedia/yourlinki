@@ -183,7 +183,7 @@ export class VisualCanvas {
     this.ui.style.left = `${left + win.scrollX}px`; this.ui.style.top = `${rect.top + win.scrollY}px`;
     this.ui.style.width = `${Math.min(rect.right, win.innerWidth - 5) - left}px`; this.ui.style.height = `${rect.height}px`;
     // The guides appear only while something is being moved or resized.
-    if (!this.freeDragging) { if (this.busy) this.showGuides(target); else this.guides?.clear(); }
+    if (!this.freeDragging) { if (this.busy && this.guidesOn) this.showGuides(target); else this.guides?.clear(); }
   }
   /** Everything the selection can line up with: the other items (not the ones inside it or around it), and the page. */
   private surroundings(target: HTMLElement) {
@@ -212,12 +212,12 @@ export class VisualCanvas {
       if (!moved) return;
       let mx = e.clientX - x, my = e.clientY - y;
       const proposed = { left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my };
-      const snap = e.altKey ? { x: 0, y: 0, xs: [], ys: [] } : this.guides!.snap(proposed, others, page);
+      const snap = e.altKey || !this.guidesOn ? { x: 0, y: 0, xs: [], ys: [] } : this.guides!.snap(proposed, others, page);
       mx += snap.x; my += snap.y;
       b.dx = Math.round(dx0 + mx) || undefined; b.dy = Math.round(dy0 + my) || undefined;
       el.style.setProperty('--dx', `${b.dx ?? 0}px`); el.style.setProperty('--dy', `${b.dy ?? 0}px`); el.toggleAttribute('data-free', !!(b.dx || b.dy));
       this.position();
-      this.guides!.show({ left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my }, others, page, snap);
+      if (this.guidesOn) this.guides!.show({ left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my }, others, page, snap);
     }, () => { this.freeDragging = false; this.guides?.clear(); }, handle);
   }
   private title() {
@@ -262,8 +262,11 @@ export class VisualCanvas {
   }
   private finish(redraw = true) { this.history.end(); this.o.commit(redraw); this.updateHistoryButtons(); }
   private action(fn: () => void) { this.history.begin(); fn(); this.finish(); this.inspector(); }
-  private undo() { if (this.busy) this.stopGesture?.(); this.o.undo(); }
-  private redo() { if (this.busy) this.stopGesture?.(); this.o.redo(); }
+  undo() { if (this.busy) this.stopGesture?.(); this.o.undo(); }
+  redo() { if (this.busy) this.stopGesture?.(); this.o.redo(); }
+  /** Purple guides and snapping, on or off (remembered on this device). */
+  guidesOn = (() => { try { return localStorage.getItem('yourlinki-guides') !== '0'; } catch { return true; } })();
+  setGuides(on: boolean) { this.guidesOn = on; try { localStorage.setItem('yourlinki-guides', on ? '1' : '0'); } catch {} if (!on) this.guides?.clear(); }
   private updateHistoryButtons() {
     this.o.inspector.querySelector<HTMLButtonElement>('[data-undo]')?.toggleAttribute('disabled', !this.o.canUndo());
     this.o.inspector.querySelector<HTMLButtonElement>('[data-redo]')?.toggleAttribute('disabled', !this.o.canRedo());

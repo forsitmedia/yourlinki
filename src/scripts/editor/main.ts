@@ -42,10 +42,27 @@ function setMode(edit: boolean) {
 }
 function openCanvas() { setMode(true); stage.classList.add('open'); document.body.classList.add('canvas-open'); }
 function closeCanvas() { stage.classList.remove('open'); document.body.classList.remove('canvas-open'); }
+// Undo / Redo and the guides switch, always in view above the page.
+const undoBtn = h('button', { type: 'button', class: 'history-btn', title: 'Undo (Cmd/Ctrl+Z)', onclick: () => canvas.undo() }, '↶', h('span', {}, 'Undo')) as HTMLButtonElement;
+const redoBtn = h('button', { type: 'button', class: 'history-btn', title: 'Redo (Cmd/Ctrl+Shift+Z)', onclick: () => canvas.redo() }, '↷', h('span', {}, 'Redo')) as HTMLButtonElement;
+const guidesBtn = h('button', { type: 'button', class: 'history-btn guides-btn', title: 'Purple guides and snapping while you move or resize items',
+  onclick: () => { canvas.setGuides(!canvas.guidesOn); refreshHistory(); } }, '⌗', h('span', {}, 'Guides')) as HTMLButtonElement;
+const historyBar = h('div', { class: 'history-bar' }, undoBtn, redoBtn, guidesBtn);
+function refreshHistory() {
+  undoBtn.disabled = !canUndo(); redoBtn.disabled = !canRedo();
+  guidesBtn.setAttribute('aria-pressed', String(canvas.guidesOn)); guidesBtn.classList.toggle('on', canvas.guidesOn);
+}
+onChange(() => setTimeout(refreshHistory));
+setInterval(refreshHistory, 800); // typing is grouped into one step after a pause, so check now and then too
+document.addEventListener('keydown', (e) => {
+  const typing = (e.target as HTMLElement)?.closest?.('input, textarea, [contenteditable]');
+  if (typing || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+  e.preventDefault(); e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
+});
 const surface = h('div', { class: 'preview-surface' }, frame);
 const deviceArea = h('div', { class: 'device-area' }, surface);
 const stage = h('div', { class: 'stage' },
-  h('div', { class: 'stage-head' }, h('span', { class: 'canvas-heading' }, 'Live canvas'), mode, canvasSave,
+  h('div', { class: 'stage-head' }, historyBar, mode, canvasSave,
     h('button', { class: 'stage-close btn-text', type: 'button', 'aria-label': 'Close design editor', onclick: closeCanvas }, 'Done')),
   h('div', { class: 'canvas-workspace' }, deviceArea, inspector));
 
