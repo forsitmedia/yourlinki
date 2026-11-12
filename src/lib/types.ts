@@ -70,6 +70,9 @@ export type PageBlock = {
   /** Height chosen by stretching the item from its top or bottom edge, in px. */
   height?: number;
   cardStyle?: CardStyle;
+  /** Free position: how far the item was moved by hand from its place, in px. Other items don't move. */
+  dx?: number;
+  dy?: number;
   /** Social icons stacked in a column instead of a row. */
   vertical?: boolean;
 };
@@ -164,9 +167,9 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     if (!b || typeof b !== 'object') continue;
     const id = typeof b.id === 'string' && b.id ? b.id : `item:${result.length}`;
     const design = normalizeBlockDesign(b.design);
-    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900);
+    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900), dx = bounded(b.dx, -600, 600), dy = bounded(b.dy, -1200, 1200);
     const layout = { ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
-      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}),
+      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(dy ? { dy: Math.round(dy) } : {}),
       ...(CARD_STYLES.includes(b.cardStyle) && CARD_TYPES.includes(b.type) ? { cardStyle: b.cardStyle as CardStyle } : {}) };
     if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
       const key = `${b.type}:${b.part}`;

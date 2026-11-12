@@ -536,3 +536,9 @@ button.row:active { transition-duration: 0s; }
 .shape-colors { display: flex; flex-wrap: wrap; gap: 10px; }
 .shape-color { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 1px #0002; color: var(--text, #000); }
 .shape-color.on { outline: 2px solid var(--blue); outline-offset: 3px; }
+
+/* Free move toggle and info in the layout panel. */
+.canvas-tools .canvas-free { color: #8b3dff; }
+.canvas-tools .canvas-free.on { background: #8b3dff; color: #fff; }
+.canvas-free-info { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: 9px; background: #8b3dff14; color: #8b3dff; font-size: 12px; }
+.canvas-free-info button { padding: 4px 9px; border-radius: 7px; background: #8b3dff; color: #fff; font-size: 12px; }

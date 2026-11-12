@@ -412,7 +412,10 @@ p, .bio { text-wrap: pretty; }
 .page .row-link[data-button-style="solid"] svg { opacity: .7; }
 
 /* "Space above" chosen per item: it moves by that much and everything below follows. */
-.stack [data-offset] { translate: 0 var(--offset, 0); margin-bottom: var(--offset, 0); align-self: start; }
+.stack [data-offset] { margin-bottom: var(--offset, 0); align-self: start; }
+/* Space above and free position both move the item; only Space above moves the items below it too. */
+.stack :is([data-offset], [data-free]) { translate: var(--dx, 0px) calc(var(--offset, 0px) + var(--dy, 0px)); }
+.stack [data-free] { position: relative; z-index: 3; }
 
 /* A tagline right under the name reads as its subtitle, not as a separate item. */
 .page .bio.tagline { align-self: start; }
@@ -537,3 +540,11 @@ html.canvas-editing .deco { pointer-events: auto; }
 @keyframes deco-float { 50% { transform: translateY(-8%) rotate(4deg); } }
 @keyframes deco-pulse { 50% { transform: scale(.9); opacity: .8; } }
 @media (prefers-reduced-motion: reduce) { .deco svg { animation: none !important; } }
+
+/* Text inside a stretched item stays centered in it and is shrunk to fit by FIT_SCRIPT (--fit). */
+.stack :is(.text-block, .bio)[data-height] { display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+.stack .fit { display: block; }
+.stack [data-height] .fit, .stack :is(.row-link, .primary)[data-height] > span { zoom: var(--fit, 1); }
+.stack :is(.row-link, .primary)[data-height] { overflow: hidden; }
+/* A short stretched card keeps most of its height for the text. */
+.page .stack :is(.text-block, .bio)[data-height][data-card]:not([data-card="none"]) { padding-block: min(14px, calc(var(--h) * .1)); }

@@ -82,6 +82,7 @@ ${photo.startsWith('https:') ? `<meta property="og:image" content="${esc(photo)}
 </main>
 ${preview ? '' : INTRO_SCRIPT}
 ${MEDIA_SCRIPT}
+${FIT_SCRIPT}
 ${preview ? PREVIEW_SCRIPT
   : `${SCHEDULE_SCRIPT}${SHARE_SCRIPT}${cfg.stats ? statsScript(cfg.stats) : ''}\n<script type="application/json" id="${CONFIG_ID}">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>`}
 </body></html>`;
@@ -99,6 +100,8 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (inset) { styles.push(`--inset:${Math.round(inset)}px`); extra += ' data-inset'; }
   const height = bounded(block.height, 24, 900);
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
+  const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
+  if (dx || dy) { styles.push(`--dx:${Math.round(dx ?? 0)}px;--dy:${Math.round(dy ?? 0)}px`); extra += ' data-free'; }
   if (block.cardStyle) extra += ` data-card="${esc(block.cardStyle)}"`;
   if (block.type === 'profile' && cfg) {
     const size = bounded(cfg.profile.photoSize, 48, 180);
@@ -140,17 +143,17 @@ function identity(cfg: Config): string {
 export const isShortBio = (text: string) => text.trim().length <= 90 && !text.includes('\n');
 
 function bio(cfg: Config, data: string): string {
-  if (isShortBio(cfg.profile.bio)) return `<p class="bio tagline"${cfg.profile.nameAlign ? ` data-align="${esc(cfg.profile.nameAlign)}"` : ''} ${data}>${rich(cfg.profile.bio.trim())}</p>`;
+  if (isShortBio(cfg.profile.bio)) return `<p class="bio tagline"${cfg.profile.nameAlign ? ` data-align="${esc(cfg.profile.nameAlign)}"` : ''} ${data}><span class="fit">${rich(cfg.profile.bio.trim())}</span></p>`;
   return cfg.look.template === 'minimal'
     ? `<section class="bio glass" ${data}><h2>About me</h2><p>${rich(cfg.profile.bio)}</p></section>`
-    : `<p class="bio glass" ${data}>${rich(cfg.profile.bio)}</p>`;
+    : `<p class="bio glass" ${data}><span class="fit">${rich(cfg.profile.bio)}</span></p>`;
 }
 
 /** A free text item: a title, subtitle, paragraph or small label. Line breaks are kept. */
 function textBlock(block: PageBlock, data: string): string {
   const style = block.textStyle ?? 'body';
   const tag = style === 'title' ? 'h2' : style === 'subtitle' ? 'h3' : 'p';
-  return `<${tag} class="text-block text-${style}"${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}>${rich(block.title!.trim())}</${tag}>`;
+  return `<${tag} class="text-block text-${style}"${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}><span class="fit">${rich(block.title!.trim())}</span></${tag}>`;
 }
 
 /** Degrees, certificates, awards and roles: a list, small cards, or a timeline. */
@@ -200,7 +203,7 @@ function linkList(items: { link: Link; block: PageBlock }[], attrs: (l: Link) =>
     const shape = normalizeButtonShape(l.buttonShape);
     const fill = normalizeButtonStyle(l.buttonStyle);
     const shapeAttr = (shape ? ` data-button-shape="${shape}"` : '') + (fill ? ` data-button-style="${fill}"` : '');
-    if (run.style === 'featured') return `<a class="primary" ${attrs(l)} ${data}${shapeAttr}>${esc(l.title)}</a>`;
+    if (run.style === 'featured') return `<a class="primary" ${attrs(l)} ${data}${shapeAttr}><span>${esc(l.title)}</span></a>`;
     if (run.style === 'tiles') return `<a class="tile" ${attrs(l)} ${data}${tileAttributes(l.tile)} aria-label="${esc(l.title)}"><div class="tile-media"><img src="${esc(safeImg(l.image))}" alt="" loading="lazy" style="${esc(imageFrameStyle(l.imageFrame))}"></div><span${tileTextStyle(l.tile)}>${esc(l.title)}</span></a>`;
     return `<a class="row-link glass" ${attrs(l)} ${data}${shapeAttr}><span>${esc(l.title)}</span>${icon('arrow', 18)}</a>`;
   }).join('')}</div>`).join('');
@@ -251,6 +254,18 @@ document.addEventListener('click', (event) => {
   frame.referrerPolicy = 'strict-origin-when-cross-origin';
   button.replaceWith(frame);
 });
+</script>`;
+
+/** Text in an item that was stretched to a set height shrinks until it fits inside (never grows past its chosen size).
+ * The layout editor calls window.yourlinkiFit() while stretching. */
+const FIT_SCRIPT = `<script>
+window.yourlinkiFit = () => document.querySelectorAll('.stack [data-height]').forEach((el) => {
+  el.style.removeProperty('--fit');
+  for (let s = 1; el.scrollHeight > el.clientHeight + 1 && s > .4; ) { s = Math.round((s - .05) * 100) / 100; el.style.setProperty('--fit', s); }
+});
+window.yourlinkiFit();
+addEventListener('load', window.yourlinkiFit);
+addEventListener('resize', window.yourlinkiFit);
 </script>`;
 
 /** In the editor preview, links open in a new tab (the editor stays put); while editing the layout, a tap selects instead. */

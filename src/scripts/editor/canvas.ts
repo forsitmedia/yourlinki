@@ -19,6 +19,7 @@ import { socialGlyph } from './social-glyph';
 import { guardTouchScroll, pressToDrag } from './reorder';
 import { h, segmented } from './ui';
 import css from './canvas.css?inline';
+import { Guides, guideCss } from './guides';
 
 type Selection = { id: string; part?: 'photo' | 'cover' | 'name'; socialId?: string };
 type Options = { config: () => Config; inspector: HTMLElement; edit: (id: string) => void; editSocial: (id: string) => void; add: () => void; commit: (redraw?: boolean) => void; save: () => void;
@@ -36,13 +37,18 @@ export class VisualCanvas {
   private pendingNew: Set<string> | null = null;
   private suppressClick = false;
   private detailsOpen = false;
+  private guides: Guides | null = null;
+  private freeDragging = false;
+  /** Free move: dragging an item places it anywhere (other items stay put) instead of changing the order. Shift does the same for one drag. */
+  private freeMode = (() => { try { return localStorage.getItem('yourlinki-free-move') === '1'; } catch { return false; } })();
   constructor(private o: Options) { this.history = new LayoutHistory(o.config); }
 
   mount(doc: Document) {
     this.dispose?.();
     this.doc = doc;
     const win = doc.defaultView!;
-    const style = doc.createElement('style'); style.textContent = css; doc.head.append(style);
+    const style = doc.createElement('style'); style.textContent = css + guideCss; doc.head.append(style);
+    this.guides = new Guides(doc);
     const ui = doc.createElement('div'); ui.className = 'canvas-ui';
     ui.innerHTML = `<button type="button" class="canvas-drag" aria-label="Drag selected item" title="Drag to reorder">${icon('grip', 17)}</button><button type="button" class="canvas-edit" aria-label="Edit selected item">Edit</button><button type="button" class="canvas-resize" aria-label="Resize selected item from its right side" title="Drag to change the width, double-click to reset"></button>`
       + ['left', 'top', 'bottom'].map((side) => `<button type="button" class="canvas-side" data-side="${side}" aria-label="Stretch selected item from its ${side} side" title="${side === 'left' ? 'Drag to change the width' : 'Drag to change the height'}, double-click to reset"></button>`).join('');
@@ -110,7 +116,7 @@ export class VisualCanvas {
     const observer = new ResizeObserver(update); observer.observe(doc.querySelector('.stack')!);
     this.dispose = () => {
       this.stopGesture?.(); socialStarts.forEach((remove) => remove()); observer.disconnect(); doc.removeEventListener('pointerdown', press); doc.removeEventListener('contextmenu', menu); doc.removeEventListener('click', click, true); doc.removeEventListener('keydown', key);
-      win.removeEventListener('scroll', update); win.removeEventListener('resize', update); ui.remove(); style.remove();
+      win.removeEventListener('scroll', update); win.removeEventListener('resize', update); ui.remove(); style.remove(); this.guides?.remove(); this.guides = null;
     };
     if (this.pendingNew) {
       const added = this.elements().find((el) => !this.pendingNew!.has(el.dataset.blockId!));
@@ -154,6 +160,42 @@ export class VisualCanvas {
     const left = Math.max(5, rect.left);
     this.ui.style.left = `${left + win.scrollX}px`; this.ui.style.top = `${rect.top + win.scrollY}px`;
     this.ui.style.width = `${Math.min(rect.right, win.innerWidth - 5) - left}px`; this.ui.style.height = `${rect.height}px`;
+    if (!this.freeDragging) this.showGuides(target);
+  }
+  /** Everything the selection can line up with: the other items (not the ones inside it or around it), and the page. */
+  private surroundings(target: HTMLElement) {
+    const others = this.elements().filter((el) => el !== target && !el.contains(target) && !target.contains(el) && el.getClientRects().length)
+      .map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+    const stack = this.doc!.querySelector<HTMLElement>('.stack')!.getBoundingClientRect();
+    return { others, page: { left: stack.left, right: stack.right, top: stack.top, bottom: stack.bottom } };
+  }
+  private showGuides(target: HTMLElement | null) {
+    if (!this.guides) return;
+    if (!target || this.selection?.socialId || this.selection?.part) { this.guides.clear(); return; }
+    const { others, page } = this.surroundings(target), r = target.getBoundingClientRect();
+    const snap = this.guides.snap(r, others, page);
+    // Only exact matches count as lined up when nothing is moving.
+    this.guides.show(r, others, page, { xs: snap.x === 0 ? snap.xs : [], ys: snap.y === 0 ? snap.ys : [] });
+  }
+  /** Moves the item anywhere with the pointer, snapping to the page center, the page edges and other items. Alt turns snapping off. */
+  private freeDrag(event: PointerEvent, handle?: HTMLElement) {
+    const b = this.block(), el = this.element(); if (!b || !el || this.busy || this.selection?.socialId) return;
+    const start = el.getBoundingClientRect(), dx0 = b.dx ?? 0, dy0 = b.dy ?? 0, x = event.clientX, y = event.clientY;
+    const { others, page } = this.surroundings(el);
+    let moved = false;
+    this.freeDragging = true;
+    this.gesture(event, (e) => {
+      moved ||= Math.hypot(e.clientX - x, e.clientY - y) >= 3;
+      if (!moved) return;
+      let mx = e.clientX - x, my = e.clientY - y;
+      const proposed = { left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my };
+      const snap = e.altKey ? { x: 0, y: 0, xs: [], ys: [] } : this.guides!.snap(proposed, others, page);
+      mx += snap.x; my += snap.y;
+      b.dx = Math.round(dx0 + mx) || undefined; b.dy = Math.round(dy0 + my) || undefined;
+      el.style.setProperty('--dx', `${b.dx ?? 0}px`); el.style.setProperty('--dy', `${b.dy ?? 0}px`); el.toggleAttribute('data-free', !!(b.dx || b.dy));
+      this.position();
+      this.guides!.show({ left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my }, others, page, snap);
+    }, () => { this.freeDragging = false; }, handle);
   }
   private title() {
     const b = this.block(), cfg = this.o.config();
@@ -220,6 +262,8 @@ export class VisualCanvas {
       h('span', { class: 'canvas-selection-name' }, this.enabled ? this.title() : 'Preview'),
       h('button', { type: 'button', 'data-undo': '', disabled: !this.o.canUndo(), 'aria-label': 'Undo', title: 'Undo (Ctrl+Z)', onclick: () => this.undo() }, '↶'),
       h('button', { type: 'button', 'data-redo': '', disabled: !this.o.canRedo(), 'aria-label': 'Redo', title: 'Redo (Ctrl+Shift+Z)', onclick: () => this.redo() }, '↷'),
+      h('button', { type: 'button', class: 'canvas-free' + (this.freeMode ? ' on' : ''), 'aria-pressed': String(this.freeMode), title: 'Free move: drag items anywhere, with guides. Off: dragging changes the order. Hold Shift for one free drag.',
+        onclick: () => { this.freeMode = !this.freeMode; try { localStorage.setItem('yourlinki-free-move', this.freeMode ? '1' : '0'); } catch {} this.inspector(); } }, this.freeMode ? '✥ Free move' : '✥ Free'),
       h('button', { type: 'button', class: 'canvas-add', onclick: () => { this.pendingNew = new Set(this.o.config().blocks.map((b) => b.id)); this.o.add(); } }, '+ Add'));
     const b = this.block(), el = this.element();
     if (!b || !el) {
@@ -273,7 +317,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -324,7 +368,10 @@ export class VisualCanvas {
     const card = CARD_TYPES.includes(b.type) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Card style'),
       cardPicker(b.cardStyle ?? (b.type === 'highlights' || b.type === 'text' || (b.type === 'bio' && el.classList.contains('tagline')) ? 'none' : 'glass'),
         (value) => this.action(() => { b.cardStyle = value; el.dataset.card = value; }))) : null;
-    const textControls = h('div', { class: 'canvas-text-controls' }, ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]));
+    const free = b.dx || b.dy ? h('div', { class: 'canvas-free-info' },
+      h('span', {}, `Moved freely: ${b.dx ?? 0} → , ${b.dy ?? 0} ↓`),
+      h('button', { type: 'button', onclick: () => this.action(() => { b.dx = undefined; b.dy = undefined; }) }, 'Put back')) : null;
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]));
     this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
@@ -436,6 +483,7 @@ export class VisualCanvas {
       } else {
         const dy = e.clientY - y, value = Math.round(Math.max(24, Math.min(900, side === 'bottom' ? height + dy : height - dy)));
         b.height = value; el.style.setProperty('--h', `${value}px`); el.setAttribute('data-height', '');
+        (this.doc!.defaultView as any).yourlinkiFit?.(); // text shrinks to fit while the box gets smaller
         if (side === 'top') { const moved = offset - (value - height); b.offset = moved || undefined; el.style.setProperty('--offset', `${moved}px`); el.toggleAttribute('data-offset', !!moved); }
       }
       this.position();
@@ -454,6 +502,7 @@ export class VisualCanvas {
   /** `handle` is needed when the drag starts after its pointerdown event has finished (see pressToDrag). */
   private drag(event: PointerEvent, handle?: HTMLElement) {
     if (this.selection?.socialId) { this.dragSocial(event); return; }
+    if (this.freeMode || event.shiftKey) { this.freeDrag(event, handle); return; }
     const source = this.element(), selection = this.selection; if (!source || !selection || this.busy) return;
     const doc = this.doc!, win = doc.defaultView!, rect = source.getBoundingClientRect();
     const ghost = source.cloneNode(true) as HTMLElement; ghost.removeAttribute('data-block-id'); ghost.classList.add('canvas-ghost'); ghost.style.width = `${Math.min(rect.width, win.innerWidth - 16)}px`;
