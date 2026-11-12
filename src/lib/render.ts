@@ -107,6 +107,7 @@ ${fontLink([cfg.look.font, ...cfg.blocks.filter((b) => !b.hidden).map((b) => b.f
 ${preview ? '' : INTRO_SCRIPT}
 ${MEDIA_SCRIPT}
 ${FIT_SCRIPT}
+${FLOAT_SCRIPT}
 ${preview ? PREVIEW_SCRIPT
   : `${SCHEDULE_SCRIPT}${SHARE_SCRIPT}${cfg.stats ? statsScript(cfg.stats) : ''}\n<script type="application/json" id="${CONFIG_ID}">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>`}
 </body></html>`;
@@ -126,6 +127,7 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
   if (dx || dy) { styles.push(`--dx:${Math.round(dx ?? 0)}px;--dy:${Math.round(dy ?? 0)}px`); extra += ' data-free'; }
+  if (block.float) { styles.push(`--fx:${+block.float.x.toFixed(2)}%;--fy:${Math.round(block.float.y)}px;--fw:${+block.float.w.toFixed(2)}%`); extra += ' data-float'; }
   const turn = bounded(block.rotate, -180, 180);
   if (turn) { styles.push(`--rot:${Math.round(turn * 10) / 10}deg`); extra += ' data-rotate'; }
   if (block.cardStyle) extra += ` data-card="${esc(block.cardStyle)}"`;
@@ -294,6 +296,20 @@ window.yourlinkiFit = () => document.querySelectorAll('.stack [data-height]').fo
 window.yourlinkiFit();
 addEventListener('load', window.yourlinkiFit);
 addEventListener('resize', window.yourlinkiFit);
+</script>`;
+
+/** Freely placed items sit outside the layout, so the page is made tall enough to show the lowest one. */
+const FLOAT_SCRIPT = `<script>
+window.yourlinkiFloat = () => {
+  const stack = document.querySelector('.stack'); if (!stack) return;
+  stack.style.minHeight = '';
+  let bottom = 0;
+  stack.querySelectorAll('[data-float]').forEach((el) => { bottom = Math.max(bottom, el.offsetTop + el.offsetHeight); });
+  if (bottom) stack.style.minHeight = bottom + 24 + 'px';
+};
+window.yourlinkiFloat();
+addEventListener('load', window.yourlinkiFloat);
+addEventListener('resize', window.yourlinkiFloat);
 </script>`;
 
 /** In the editor preview, links open in a new tab (the editor stays put); while editing the layout, a tap selects instead. */

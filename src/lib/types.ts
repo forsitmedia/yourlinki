@@ -76,6 +76,8 @@ export type PageBlock = {
   /** Free position: how far the item was moved by hand from its place, in px. Other items don't move. */
   dx?: number;
   dy?: number;
+  /** Placed freely: lifted out of the layout and pinned at x (% of page width), y (px from the top of the items), width (% of page width). */
+  float?: { x: number; y: number; w: number };
   /** Turn of the whole item in degrees (−180 to 180). */
   rotate?: number;
   /** Social icons stacked in a column instead of a row. */
@@ -175,7 +177,9 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900), dx = bounded(b.dx, -600, 600), dy = bounded(b.dy, -1200, 1200), rotate = bounded(b.rotate, -180, 180);
     const icons = b.type === 'social' ? { ...(b.iconColor === 'brand' || /^#[0-9a-f]{6}$/i.test(b.iconColor) ? { iconColor: b.iconColor } : {}), ...(CARD_STYLES.includes(b.iconStyle) ? { iconStyle: b.iconStyle } : {}) } : {};
     const layout = { ...icons, ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
-      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(rotate ? { rotate: Math.round(rotate * 10) / 10 } : {}), ...(dy ? { dy: Math.round(dy) } : {}),
+      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(rotate ? { rotate: Math.round(rotate * 10) / 10 } : {}),
+      ...(b.float && typeof b.float === 'object' && [b.float.x, b.float.y, b.float.w].every((v) => typeof v === 'number' && Number.isFinite(v))
+        ? { float: { x: bounded(b.float.x, -60, 160)!, y: bounded(b.float.y, -400, 8000)!, w: bounded(b.float.w, 4, 100)! } } : {}), ...(dy ? { dy: Math.round(dy) } : {}),
       ...(CARD_STYLES.includes(b.cardStyle) && CARD_TYPES.includes(b.type) ? { cardStyle: b.cardStyle as CardStyle } : {}) };
     if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
       const key = `${b.type}:${b.part}`;

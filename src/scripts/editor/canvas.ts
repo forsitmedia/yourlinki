@@ -204,22 +204,54 @@ export class VisualCanvas {
     // Only exact matches count as lined up when nothing is moving.
     this.guides.show(r, others, page, { xs: snap.x === 0 ? snap.xs : [], ys: snap.y === 0 ? snap.ys : [] });
   }
-  /** Moves the item anywhere with the pointer, snapping to the page center, the page edges and other items. Alt turns snapping off. */
+  /** Pins an item where it is now, outside the layout (other items close the gap). Works with rotation: offsets ignore it. */
+  private lift(b: PageBlock, el: HTMLElement) {
+    const stack = this.doc!.querySelector<HTMLElement>('.stack')!, width = stack.clientWidth;
+    const left = el.offsetLeft + (b.dx ?? 0), top = el.offsetTop + (b.dy ?? 0) + (b.offset ?? 0);
+    b.float = { x: left / width * 100, y: top, w: el.offsetWidth / width * 100 };
+    b.dx = undefined; b.dy = undefined; b.offset = undefined;
+    this.applyFloat(b, el);
+  }
+  /** A free item has its own width: the same share of the page as `span` columns. `keepRight` grows it to the left. */
+  private floatSpan(b: PageBlock, el: HTMLElement, span: number, keepRight: boolean) {
+    if (!b.float) return;
+    const stack = this.doc!.querySelector<HTMLElement>('.stack')!, cs = this.doc!.defaultView!.getComputedStyle(stack);
+    const pad = parseFloat(cs.paddingLeft) || 0, gap = parseFloat(cs.columnGap) || 0, inner = stack.clientWidth - pad * 2;
+    const w = Math.round(((inner + gap) * span / 12 - gap) / stack.clientWidth * 10000) / 100;
+    b.float = { ...b.float, w, x: keepRight ? Math.round((b.float.x + b.float.w - w) * 100) / 100 : b.float.x };
+    this.applyFloat(b, el);
+  }
+  private applyFloat(b: PageBlock, el: HTMLElement) {
+    if (b.float) {
+      el.style.setProperty('--fx', `${b.float.x}%`); el.style.setProperty('--fy', `${b.float.y}px`); el.style.setProperty('--fw', `${b.float.w}%`);
+      el.setAttribute('data-float', '');
+    } else el.removeAttribute('data-float');
+    el.removeAttribute('data-free'); el.removeAttribute('data-offset');
+    (this.doc!.defaultView as any).yourlinkiFloat?.();
+  }
+  /** Moves the item anywhere with the pointer, snapping to the page center, the page edges and other items. Alt turns snapping off.
+   * The item is lifted out of the layout on the first move, so reordering other items later never moves it. */
   private freeDrag(event: PointerEvent, handle?: HTMLElement) {
     const b = this.block(), el = this.element(); if (!b || !el || this.busy || this.selection?.socialId) return;
-    const start = el.getBoundingClientRect(), dx0 = b.dx ?? 0, dy0 = b.dy ?? 0, x = event.clientX, y = event.clientY;
-    const { others, page } = this.surroundings(el);
-    let moved = false;
+    const x = event.clientX, y = event.clientY;
+    let moved = false, start: DOMRect, base = { x: 0, y: 0 }, others: DOMRect[] = [], page = { left: 0, right: 0, top: 0, bottom: 0 }, width = 1;
     this.freeDragging = true;
     this.gesture(event, (e) => {
-      moved ||= Math.hypot(e.clientX - x, e.clientY - y) >= 3;
-      if (!moved) return;
+      if (!moved) {
+        if (Math.hypot(e.clientX - x, e.clientY - y) < 3) return;
+        moved = true;
+        if (!b.float) this.lift(b, el);
+        width = this.doc!.querySelector<HTMLElement>('.stack')!.clientWidth;
+        base = { x: b.float!.x / 100 * width, y: b.float!.y };
+        start = el.getBoundingClientRect();
+        ({ others, page } = this.surroundings(el));
+      }
       let mx = e.clientX - x, my = e.clientY - y;
       const proposed = { left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my };
       const snap = e.altKey || !this.guidesOn ? { x: 0, y: 0, xs: [], ys: [] } : this.guides!.snap(proposed, others, page);
       mx += snap.x; my += snap.y;
-      b.dx = Math.round(dx0 + mx) || undefined; b.dy = Math.round(dy0 + my) || undefined;
-      el.style.setProperty('--dx', `${b.dx ?? 0}px`); el.style.setProperty('--dy', `${b.dy ?? 0}px`); el.toggleAttribute('data-free', !!(b.dx || b.dy));
+      b.float = { ...b.float!, x: Math.round((base.x + mx) / width * 10000) / 100, y: Math.round(base.y + my) };
+      this.applyFloat(b, el);
       this.position();
       if (this.guidesOn) this.guides!.show({ left: start.left + mx, right: start.right + mx, top: start.top + my, bottom: start.bottom + my }, others, page, snap);
     }, () => { this.freeDragging = false; this.guides?.clear(); }, handle);
@@ -260,6 +292,7 @@ export class VisualCanvas {
     const b = this.block(), el = this.element(); if (!b || !el) return;
     const span = Math.round(bounded(value, 2, 12) ?? 12);
     b.design = { span, align: b.design?.align ?? 'auto', ...(b.design?.start ? { start: Math.min(b.design.start, 13 - span) } : {}) };
+    if (b.float) this.floatSpan(b, el, span, false);
     el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
     const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size; // text scales live while resizing
     this.position();
@@ -347,7 +380,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -398,9 +431,9 @@ export class VisualCanvas {
     const card = CARD_TYPES.includes(b.type) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Card style'),
       cardPicker(b.cardStyle ?? (b.type === 'highlights' || b.type === 'text' || (b.type === 'bio' && el.classList.contains('tagline')) ? 'none' : 'glass'),
         (value) => this.action(() => { b.cardStyle = value; el.dataset.card = value; }))) : null;
-    const free = b.dx || b.dy ? h('div', { class: 'canvas-free-info' },
-      h('span', {}, `Moved freely: ${b.dx ?? 0} → , ${b.dy ?? 0} ↓`),
-      h('button', { type: 'button', onclick: () => this.action(() => { b.dx = undefined; b.dy = undefined; }) }, 'Put back')) : null;
+    const free = b.float || b.dx || b.dy ? h('div', { class: 'canvas-free-info' },
+      h('span', {}, 'Placed freely: other items move around it.'),
+      h('button', { type: 'button', onclick: () => this.action(() => { b.float = undefined; b.dx = undefined; b.dy = undefined; }) }, 'Put back in layout')) : null;
     const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
       b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);
     }, (v) => `${v}°`);
@@ -558,6 +591,7 @@ export class VisualCanvas {
           const first = Math.max(1, end - columns + 1);
           b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
           el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
+          if (b.float) this.floatSpan(b, el, b.design.span, true);
           const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size;
         }
         setHeight(height * factor);
@@ -579,6 +613,7 @@ export class VisualCanvas {
         const first = Math.max(1, Math.min(end - 1, Math.round(start + (e.clientX - x) / column)));
         b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
         el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
+        if (b.float) this.floatSpan(b, el, b.design.span, true);
         const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size;
       }
       if (down) {
@@ -633,7 +668,7 @@ export class VisualCanvas {
       if (!cancel && moved && destination) {
         moveBlock(this.o.config(), selection.id, destination.id, destination.after);
         // An item placed freely before rejoins the layout where it is dropped.
-        const b = this.o.config().blocks.find((x) => x.id === selection.id); if (b) { b.dx = undefined; b.dy = undefined; }
+        const b = this.o.config().blocks.find((x) => x.id === selection.id); if (b) { b.dx = undefined; b.dy = undefined; b.float = undefined; }
       }
     }, handle);
     if (this.busy) { doc.body.append(ghost, marker); source.classList.add('canvas-source'); if (this.ui) this.ui.style.opacity = '0'; update(); animation = requestAnimationFrame(tick); }

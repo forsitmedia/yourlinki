@@ -567,3 +567,6 @@ html.canvas-editing .deco { pointer-events: auto; }
 
 /* Turn chosen per item (layout editor's rotation handle). */
 .stack [data-rotate] { rotate: var(--rot, 0deg); }
+
+/* Freely placed items: lifted out of the layout and pinned in place, so moving other items never moves them. */
+.stack > [data-float], .stack > .rows > [data-float], .stack > .tiles > [data-float] { position: absolute !important; left: var(--fx); top: var(--fy); width: var(--fw); max-width: none; margin: 0 !important; grid-column: auto !important; grid-row: auto !important; translate: none; z-index: 3; box-sizing: border-box; }

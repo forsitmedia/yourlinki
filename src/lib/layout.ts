@@ -50,7 +50,7 @@ export function dropTarget(rects: BlockRect[], x: number, y: number, excluded: s
 const clone = <T>(value: T): T => value === undefined ? value : JSON.parse(JSON.stringify(value));
 type Framed = { source: string | null | undefined; frame?: ImageFrame };
 type LayoutSnapshot = {
-  blocks: { id: string; design?: BlockDesign; image: Framed; videoAspect?: PageBlock['videoAspect']; buttonShape?: ButtonShape; buttonStyle?: ButtonStyle; textScale?: number; offset?: number; inset?: number; height?: number; dx?: number; dy?: number; rotate?: number }[];
+  blocks: { id: string; design?: BlockDesign; image: Framed; videoAspect?: PageBlock['videoAspect']; buttonShape?: ButtonShape; buttonStyle?: ButtonStyle; textScale?: number; offset?: number; inset?: number; height?: number; dx?: number; dy?: number; rotate?: number; float?: PageBlock['float'] }[];
   socialOrder: string[];
   profile: { photo: Framed; cover: Framed; photoSize?: number; coverHeight?: number };
   spacing?: number;
@@ -61,7 +61,7 @@ function blockImage(cfg: Config, b: PageBlock) {
   return { item, source: item?.image || (b.type === 'youtube' ? b.url : null) };
 }
 function snapshot(cfg: Config): LayoutSnapshot {
-  return clone({ blocks: cfg.blocks.map((b) => ({ id: b.id, design: b.design, videoAspect: b.videoAspect, textScale: b.textScale, offset: b.offset, inset: b.inset, height: b.height, dx: b.dx, dy: b.dy, rotate: b.rotate, buttonShape: b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId)?.buttonShape : undefined, buttonStyle: b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId)?.buttonStyle : undefined, image: { source: blockImage(cfg, b).source, frame: blockImage(cfg, b).item?.imageFrame } })),
+  return clone({ blocks: cfg.blocks.map((b) => ({ id: b.id, design: b.design, videoAspect: b.videoAspect, textScale: b.textScale, offset: b.offset, inset: b.inset, height: b.height, dx: b.dx, dy: b.dy, rotate: b.rotate, float: b.float, buttonShape: b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId)?.buttonShape : undefined, buttonStyle: b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId)?.buttonStyle : undefined, image: { source: blockImage(cfg, b).source, frame: blockImage(cfg, b).item?.imageFrame } })),
     socialOrder: cfg.social.map(socialKey),
     profile: { photo: { source: cfg.profile.photo, frame: cfg.profile.photoFrame }, cover: { source: cfg.profile.cover, frame: cfg.profile.coverFrame }, photoSize: cfg.profile.photoSize, coverHeight: cfg.profile.coverHeight }, spacing: cfg.look.spacing, margin: cfg.look.margin });
 }
@@ -71,7 +71,7 @@ function restore(cfg: Config, value: LayoutSnapshot) {
   for (const item of value.blocks) {
     const b = ids.get(item.id);
     if (!b) continue;
-    b.design = clone(item.design); b.textScale = item.textScale; b.offset = item.offset; b.inset = item.inset; b.height = item.height; b.dx = item.dx; b.dy = item.dy; b.rotate = item.rotate;
+    b.design = clone(item.design); b.textScale = item.textScale; b.offset = item.offset; b.inset = item.inset; b.height = item.height; b.dx = item.dx; b.dy = item.dy; b.rotate = item.rotate; b.float = clone(item.float);
     if (b.type === 'youtube') b.videoAspect = item.videoAspect;
     if (b.type === 'link') { const link = cfg.links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = item.buttonShape; link.buttonStyle = item.buttonStyle; } }
     const image = blockImage(cfg, b);
