@@ -162,7 +162,7 @@ export class VisualCanvas {
     if (this.selection?.part === 'photo') return 'Photo or logo';
     if (this.selection?.part === 'name') return 'Name';
     if (b.type === 'link') return cfg.links.find((l) => l.id === b.linkId)?.title || 'Link';
-    return b.title || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text' }[b.type]);
+    return b.title || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials' }[b.type]);
   }
   private image() {
     const cfg = this.o.config(), b = this.block();

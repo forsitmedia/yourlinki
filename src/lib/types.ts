@@ -20,13 +20,25 @@ export type Link = {
   expireAt?: string;
 };
 export type Social = { id?: string; platform: string; url: string };
+export const CREDENTIAL_KINDS = [
+  { value: 'degree', label: 'Degree', icon: 'cap' },
+  { value: 'certificate', label: 'Certificate', icon: 'seal' },
+  { value: 'award', label: 'Award', icon: 'trophy' },
+  { value: 'work', label: 'Work', icon: 'briefcase' },
+] as const;
+/** One degree, certificate, award or role in a Credentials item. */
+export type Credential = { kind: typeof CREDENTIAL_KINDS[number]['value']; title: string; org: string; year: string; logo?: string | null; url?: string };
+export const CREDENTIAL_LAYOUTS = ['list', 'cards', 'timeline'] as const;
 export type Highlight = { value: string; label: string };
 export const TEMPLATE_IDS = ['photo', 'classic', 'studio', 'cover', 'gallery', 'bold', 'minimal'] as const;
 export type Template = typeof TEMPLATE_IDS[number];
 export type PageBlock = {
   id: string;
   design?: BlockDesign;
-  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text';
+  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials';
+  /** Credentials items: the entries and how they are laid out. */
+  entries?: Credential[];
+  variant?: typeof CREDENTIAL_LAYOUTS[number];
   /** One piece of a group shown on its own: a social icon's key, or a highlight's position. */
   part?: string;
   /** Text items: how the words look, and where they line up. */
@@ -152,6 +164,12 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
       if (singles.has(b.type) || parts.has(key)) continue;
       parts.add(key);
       add({ id, type: b.type, part: b.part, hidden: !!b.hidden, ...layout, ...(b.vertical === true ? { vertical: true } : {}) });
+    } else if (b.type === 'credentials') {
+      const str = (v: unknown, max: number) => typeof v === 'string' ? v.slice(0, max) : '';
+      const entries: Credential[] = (Array.isArray(b.entries) ? b.entries : []).filter((e: any) => e && typeof e === 'object').slice(0, 12).map((e: any) => ({
+        kind: CREDENTIAL_KINDS.some((k) => k.value === e.kind) ? e.kind : 'degree', title: str(e.title, 120), org: str(e.org, 120), year: str(e.year, 30),
+        ...(safeImg(e.logo) ? { logo: e.logo } : {}), ...(typeof e.url === 'string' && e.url ? { url: e.url.slice(0, 500) } : {}) }));
+      add({ id, type: 'credentials', ...layout, title: str(b.title, 60), entries, hidden: !!b.hidden, ...(CREDENTIAL_LAYOUTS.includes(b.variant) ? { variant: b.variant } : {}) });
     } else if (b.type === 'text') {
       add({ id, type: 'text', ...layout, title: typeof b.title === 'string' ? b.title : '', hidden: !!b.hidden,
         ...(TEXT_STYLES.includes(b.textStyle) ? { textStyle: b.textStyle } : {}), ...(NAME_ALIGN.includes(b.textAlign) ? { textAlign: b.textAlign } : {}) });

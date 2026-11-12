@@ -7,7 +7,7 @@ import { bounded, designStyle, normalizeBlockDesign, sizeTier } from './layout';
 import { icon } from './icons';
 import { platform } from './platforms';
 import { youtubeVideo, youtubeCover, postUrl, postSource, videoRatio } from './media';
-import { isVisible, safeUrl, safeImg, type Config, type Link, type PageBlock } from './types';
+import { isVisible, safeUrl, safeImg, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
 import css from './page.css?inline';
 
 type Opts = { now?: number; preview?: boolean };
@@ -54,6 +54,7 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'highlights') blocks.push(highlights(cfg, data + (block.part ? ' data-part' : ''), block.part));
     if (block.type === 'social') blocks.push(social(cfg, data + (block.vertical ? ' data-vertical' : '') + (block.part ? ' data-part' : ''), block.part));
     if (block.type === 'text' && block.title?.trim()) blocks.push(textBlock(block, data));
+    if (block.type === 'credentials') blocks.push(credentials(block, data));
     if (block.type === 'youtube') blocks.push(video(block, data));
     if (block.type === 'image') blocks.push(imageBlock(block, data));
     if (block.type === 'post') blocks.push(postCard(block, data));
@@ -145,6 +146,23 @@ function textBlock(block: PageBlock, data: string): string {
   const style = block.textStyle ?? 'body';
   const tag = style === 'title' ? 'h2' : style === 'subtitle' ? 'h3' : 'p';
   return `<${tag} class="text-block text-${style}"${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}>${rich(block.title!.trim())}</${tag}>`;
+}
+
+/** Degrees, certificates, awards and roles: a list, small cards, or a timeline. */
+function credentials(block: PageBlock, data: string): string {
+  const entries = (block.entries ?? []).filter((e) => e.title.trim() || e.org.trim());
+  if (!entries.length) return '';
+  const variant = block.variant ?? 'list';
+  const items = entries.map((e) => {
+    const kind = CREDENTIAL_KINDS.find((k) => k.value === e.kind) ?? CREDENTIAL_KINDS[0];
+    const badge = `<span class="cred-badge cred-${kind.value}">${safeImg(e.logo) ? `<img src="${esc(safeImg(e.logo))}" alt="" loading="lazy">` : icon(kind.icon, variant === 'cards' ? 22 : 20)}</span>`;
+    const url = safeUrl(e.url ?? '');
+    const copy = `<span class="cred-copy"><b>${rich(e.title)}</b>${e.org ? `<span>${esc(e.org)}</span>` : ''}</span>`;
+    const year = e.year ? `<time>${esc(e.year)}</time>` : '';
+    const inner = variant === 'timeline' ? `${year}<span class="cred-dot" aria-hidden="true"></span>${badge}${copy}` : variant === 'cards' ? `${badge}${copy}${year}` : `${badge}${copy}${year}`;
+    return url ? `<li><a class="cred" href="${esc(url)}" rel="noopener">${inner}</a></li>` : `<li><div class="cred">${inner}</div></li>`;
+  }).join('');
+  return `<section class="creds${variant === 'cards' ? '' : ' glass'}" data-variant="${variant}" ${data}>${block.title ? `<h2 class="creds-h">${esc(block.title)}</h2>` : ''}<ul>${items}</ul></section>`;
 }
 
 function highlights(cfg: Config, data: string, part?: string): string {

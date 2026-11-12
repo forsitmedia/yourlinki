@@ -1,5 +1,5 @@
 import { platform } from '../../lib/platforms';
-import { safeImg, withScheme, NAME_ALIGN, type PageBlock, type TextStyle } from '../../lib/types';
+import { safeImg, withScheme, NAME_ALIGN, CREDENTIAL_KINDS, type Credential, type PageBlock, type TextStyle } from '../../lib/types';
 import { separateName, hasSeparateName } from '../../lib/layout';
 import { imageFrameStyle } from '../../lib/image-frame';
 import { moveSocial, socialKey } from '../../lib/social-order';
@@ -19,6 +19,7 @@ export function editPageBlock(id: string) {
   if (block.type === 'youtube' || block.type === 'image') return mediaSheet(block);
   if (block.type === 'post') return postSheet(block);
   if (block.type === 'text') return textSheet(block);
+  if (block.type === 'credentials') return credentialsSheet(block);
   if (block.type === 'name') return editPageBlock(cfg.blocks.find((b) => b.type === 'profile')!.id); // the name is edited with the profile
   const titles: Record<string, string> = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
   const body = h('div');
@@ -192,6 +193,53 @@ export function textSheet(block: PageBlock, isNew = false) {
 }
 const withFormatBar = (area: HTMLElement) => [h('div', { class: 'row stacked' }, formatBar(area)), area];
 
+/** Degrees, certificates, awards and roles, shown as a list, cards or a timeline. */
+export function credentialsSheet(block: PageBlock, isNew = false) {
+  const cfg = state.cfg;
+  let deleted = false;
+  block.entries ??= [];
+  const entries = block.entries;
+  const body = h('div');
+  const entryGroup = (e: Credential, i: number) => group({ header: `${CREDENTIAL_KINDS.find((k) => k.value === e.kind)?.label ?? 'Entry'} ${i + 1}` },
+    h('div', { class: 'row stacked' }, segmented(CREDENTIAL_KINDS.map((k) => ({ value: k.value, label: k.label })), e.kind, (v) => { e.kind = v; changed(); draw(); })),
+    inputRow('Title', e.title, (v) => { e.title = v; changed(); }, { max: 120, placeholder: e.kind === 'degree' ? 'MSc Marketing' : e.kind === 'certificate' ? 'Google Ads Certified' : e.kind === 'award' ? 'Best Campaign 2025' : 'Creative Director' }),
+    inputRow(e.kind === 'work' ? 'Company' : e.kind === 'degree' ? 'School' : 'From', e.org, (v) => { e.org = v; changed(); }, { max: 120, placeholder: e.kind === 'degree' ? 'University of Lisbon' : e.kind === 'work' ? 'Forsitmedia' : 'Google' }),
+    inputRow('Year', e.year, (v) => { e.year = v; changed(); }, { max: 30, placeholder: e.kind === 'work' ? '2022 – now' : '2024' }),
+    inputRow('Link', e.url ?? '', (v) => { e.url = withScheme(v) || undefined; changed(); }, { type: 'url', placeholder: 'Optional: verify or read more' }),
+    navRow({
+      lead: safeImg(e.logo) ? h('img', { src: safeImg(e.logo), alt: '' }) : svg('photo', 18),
+      title: e.logo ? 'Change Logo' : 'Add Logo', subtitle: 'Optional: the school or company logo',
+      onClick: async () => { try { const url = await pickImage(240); if (url) { e.logo = url; changed(true); draw(); } } catch (err: any) { toast(err.message); } },
+    }),
+    h('div', { class: 'row cred-entry-actions' },
+      h('button', { type: 'button', class: 'btn-text', disabled: i === 0, onclick: () => { entries.splice(i - 1, 0, entries.splice(i, 1)[0]); changed(true); draw(); } }, 'Move up'),
+      e.logo && h('button', { type: 'button', class: 'btn-text', onclick: () => { e.logo = null; changed(true); draw(); } }, 'Remove logo'),
+      h('button', { type: 'button', class: 'btn-text red', onclick: () => { entries.splice(i, 1); changed(true); draw(); } }, 'Remove')));
+  const draw = () => body.replaceChildren(
+    group({ footer: 'A short heading, like Education, Certifications or Awards. Leave empty for none.' },
+      inputRow('Heading', block.title ?? '', (v) => { block.title = v; changed(); }, { max: 60, placeholder: 'Education' })),
+    group({ header: 'Layout' }, h('div', { class: 'row stacked' }, segmented([{ value: 'list', label: 'List' }, { value: 'cards', label: 'Cards' }, { value: 'timeline', label: 'Timeline' }], block.variant ?? 'list', (v) => { block.variant = v; changed(); }))),
+    ...entries.map(entryGroup),
+    entries.length < 12 ? group({}, actionRow('Add Entry', () => { entries.push({ kind: entries.at(-1)?.kind ?? 'degree', title: '', org: '', year: '' }); changed(true); draw(); })) : document.createDocumentFragment(),
+    group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
+    group({}, dangerRow('Delete Credentials', () => {
+      if (!isNew && !confirm('Delete these credentials?')) return;
+      deleted = true;
+      cfg.blocks = cfg.blocks.filter((b) => b.id !== block.id);
+      close();
+    })));
+  draw();
+  const close = sheet(isNew ? 'New Credentials' : 'Edit Credentials', () => [body], { onClose: () => {
+    if (!deleted && isNew && !entries.some((e) => e.title.trim() || e.org.trim())) state.cfg.blocks = state.cfg.blocks.filter((b) => b.id !== block.id);
+    changed(true);
+  } });
+}
+export function addCredentials() {
+  const block: PageBlock = { id: `credentials:${uid()}`, type: 'credentials', title: 'Education', variant: 'list', entries: [{ kind: 'degree', title: '', org: '', year: '' }] };
+  state.cfg.blocks.push(block); changed(true);
+  credentialsSheet(block, true);
+}
+
 export function addTextItem() {
   const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
   state.cfg.blocks.push(block); changed(true);
@@ -207,6 +255,7 @@ export function addItemMenu() {
         state.cfg.links.push(link); state.cfg.blocks.push({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
       } }),
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
+      navRow({ lead: svg('cap'), title: 'Credentials', subtitle: 'Degrees, certificates, awards, work', onClick: () => { close(); addCredentials(); } }),
       navRow({ lead: svg('post'), title: 'Post Preview', subtitle: 'Cover, title and excerpt', onClick: () => { close(); addMediaItem('post'); } }),
       navRow({ lead: svg('play'), title: 'YouTube Video', subtitle: 'Automatic cover and video player', onClick: () => { close(); addMediaItem('youtube'); } }),
       navRow({ lead: svg('photo'), title: 'Image', subtitle: 'A photo, artwork, or announcement', onClick: () => { close(); addMediaItem('image'); } })),
