@@ -5,7 +5,8 @@ import { FONTS, FONT_LABELS, modeFor } from '../../lib/look';
 import { plain } from '../../lib/render';
 import { TEMPLATES } from '../../lib/templates';
 import { youtubeVideo, youtubeCover, postSource } from '../../lib/media';
-import { isVisible, safeImg, type Look, type PageBlock } from '../../lib/types';
+import { isVisible, safeImg, MUSIC_STYLES, type Look, type PageBlock } from '../../lib/types';
+import { MUSIC_LABELS } from '../../lib/music';
 import { state, changed } from './state';
 import { imageFrameStyle } from '../../lib/image-frame';
 import { sortable } from './reorder';
@@ -69,6 +70,7 @@ export function pageTab(): HTMLElement {
     if (b.type === 'name') return { title: 'Name', subtitle: extra([cfg.profile.name, cfg.profile.handle && '@' + cfg.profile.handle].filter(Boolean).join(' · ')), icon: 'text', hidden };
     if (b.type === 'bio') return { title: 'Bio', subtitle: extra(cfg.profile.bio || 'Add a few words about you'), icon: 'text', hidden };
     if (b.type === 'space') return { title: 'Empty space', subtitle: 'Only you see it while editing · tap to remove', icon: 'minus', hidden };
+    if (b.type === 'voice') return { title: 'Voice message', subtitle: extra(b.audio ? `${b.title || 'Recording'}${b.duration ? ` · ${Math.floor(b.duration / 60)}:${String(Math.round(b.duration % 60)).padStart(2, '0')}` : ''}` : 'Tap to record'), icon: 'mic', hidden };
     if (b.type === 'shape') return { title: 'Shape', subtitle: extra(`${b.deco?.shape ?? 'blob'} · ${b.deco?.color ?? ''}`), icon: 'star', hidden };
     if (b.type === 'credentials') return { title: b.title || 'Credentials', subtitle: extra((b.entries ?? []).map((e) => e.title).filter(Boolean).join(' · ') || 'Add your degrees and awards'), icon: 'cap', hidden };
     if (b.type === 'text') return { title: plain(b.title ?? '').trim().split('\n')[0].replace(/^\s*([-•]|\d+[.)])\s+/, '') || 'Text', subtitle: extra({ title: 'Title', subtitle: 'Subtitle', body: 'Text', small: 'Label' }[b.textStyle ?? 'body']), icon: 'text', hidden };
@@ -129,6 +131,8 @@ export function pageTab(): HTMLElement {
         set('color', v, true); // redraw: the Mode control may have changed
       }, false)),
       line('Button Color', swatches(['', '#ffffff', '#000000', '#0a84ff', '#ff375f', '#ff9f0a', '#30d158', '#bf5af2'], look.accent, (v) => set('accent', v))),
-      line('Font', fontControl));
+      line('Font', fontControl),
+      line('Music', segmented([{ value: '', label: 'Off' }, ...MUSIC_STYLES.map((m) => ({ value: m, label: MUSIC_LABELS[m] }))], look.music ?? '', (v) => set('music', (v || undefined) as Look['music'], true))),
+      look.music && h('p', { class: 'row-note' }, 'A ♪ button appears next to Share. Music starts only when a visitor taps it, and it is made live in their browser, so there is no copyright. Try it in Preview.'));
   }
 }

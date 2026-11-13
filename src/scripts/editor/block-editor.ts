@@ -23,6 +23,7 @@ export function editPageBlock(id: string) {
   if (block.type === 'text') return textSheet(block);
   if (block.type === 'credentials') return credentialsSheet(block);
   if (block.type === 'shape') return shapeSheet(block);
+  if (block.type === 'voice') return voiceSheet(block);
   if (block.type === 'space') { if (confirm('Remove this empty space?')) { cfg.blocks = cfg.blocks.filter((b) => b.id !== id); changed(true); } return; }
   if (block.type === 'name') return editPageBlock(cfg.blocks.find((b) => b.type === 'profile')!.id); // the name is edited with the profile
   const titles: Record<string, string> = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
@@ -363,6 +364,86 @@ export function addShape() {
   shapeSheet(block, true);
 }
 
+export function addVoice() {
+  const block: PageBlock = { id: `voice:${uid()}`, type: 'voice', title: 'A message from me' };
+  placeBlock(block); changed(true);
+  voiceSheet(block, true);
+}
+
+/** Records (or takes an audio file), then keeps it in the page as a data URL with its length and waveform. */
+const VOICE_LIMIT = 120; // seconds
+async function audioDetails(blob: Blob) {
+  const url = await new Promise<string>((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = fail; r.readAsDataURL(blob); });
+  let duration = 0, peaks: number[] = [];
+  try {
+    const ctx = new AudioContext(), data = await ctx.decodeAudioData(await blob.arrayBuffer()); ctx.close();
+    duration = data.duration;
+    const ch = data.getChannelData(0), n = 40, size = Math.floor(ch.length / n);
+    const raw = Array.from({ length: n }, (_, i) => { let m = 0; for (let j = i * size; j < (i + 1) * size; j += 32) m = Math.max(m, Math.abs(ch[j])); return m; });
+    const top = Math.max(...raw, .01); peaks = raw.map((v) => Math.round(v / top * 100) / 100);
+  } catch {} // some formats can't be decoded here: the page shows an even waveform instead
+  return { url: url.replace(/^data:audio\/([\w.+-]+);codecs=[^;,]+/, 'data:audio/$1'), duration, peaks };
+}
+
+export function voiceSheet(block: PageBlock, isNew = false) {
+  const cfg = state.cfg;
+  let deleted = false, recorder: MediaRecorder | null = null, stream: MediaStream | null = null, timer = 0, started = 0;
+  const body = h('div');
+  const save = async (blob: Blob) => {
+    if (blob.size > 4_000_000) { toast('That recording is too long. Keep it under 2 minutes.'); return; }
+    const d = await audioDetails(blob);
+    block.audio = d.url; block.duration = d.duration ? Math.round(d.duration * 10) / 10 : undefined; block.peaks = d.peaks.length ? d.peaks : undefined;
+    changed(true); draw();
+  };
+  const stopRecording = () => { recorder?.state === 'recording' && recorder.stop(); };
+  const record = async () => {
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch { toast('Allow the microphone to record (check the browser\'s site settings).'); return; }
+    const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported(t));
+    recorder = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 48000 });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    recorder.onstop = () => {
+      clearInterval(timer); stream?.getTracks().forEach((t) => t.stop()); stream = null;
+      const blob = new Blob(chunks, { type: recorder?.mimeType || type || 'audio/webm' }); recorder = null;
+      save(blob);
+    };
+    recorder.start(); started = Date.now(); draw();
+    timer = window.setInterval(() => {
+      const s = (Date.now() - started) / 1000;
+      const out = body.querySelector('.voice-rec-time'); if (out) out.textContent = `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')} / 2:00`;
+      if (s >= VOICE_LIMIT) stopRecording();
+    }, 250);
+  };
+  const upload = () => {
+    const input = h('input', { type: 'file', accept: 'audio/*' }) as HTMLInputElement;
+    input.onchange = () => { const f = input.files?.[0]; if (f) save(f); };
+    input.click();
+  };
+  const draw = () => body.replaceChildren(
+    group({ header: 'Your voice', footer: 'Say hi, tell people what they will find here, or share some news. Up to 2 minutes. Visitors tap play to listen.' },
+      recorder
+        ? h('div', { class: 'row voice-rec' }, h('span', { class: 'voice-rec-dot' }), h('span', { class: 'voice-rec-time' }, '0:00 / 2:00'),
+            h('button', { type: 'button', class: 'voice-rec-btn stop', onclick: stopRecording }, 'Stop'))
+        : h('div', { class: 'row voice-rec' }, h('button', { type: 'button', class: 'voice-rec-btn', onclick: record }, svg('mic', 18), block.audio ? 'Record again' : 'Record'),
+            h('button', { type: 'button', class: 'btn-text', onclick: upload }, 'Upload audio')),
+      block.audio && !recorder ? h('div', { class: 'row stacked' }, h('audio', { controls: true, src: block.audio, class: 'voice-preview' })) : null),
+    group({ header: 'Label' }, inputRow('Label', block.title ?? '', (v) => { block.title = v; changed(); }, { placeholder: 'A message from me', max: 80 })),
+    group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
+    group({}, dangerRow('Delete Voice Message', () => {
+      if (!isNew && !confirm('Delete this voice message?')) return;
+      deleted = true; stopRecording();
+      cfg.blocks = cfg.blocks.filter((b) => b.id !== block.id);
+      close();
+    })));
+  draw();
+  const close = sheet(isNew ? 'New Voice Message' : 'Voice Message', () => [body], { onClose: () => {
+    stopRecording();
+    if (!deleted && !block.audio) state.cfg.blocks = state.cfg.blocks.filter((b) => b.id !== block.id); // nothing recorded: no empty item
+    changed(true);
+  } });
+}
+
 export function addTextItem() {
   const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
   placeBlock(block); changed(true);
@@ -380,6 +461,7 @@ export function addItemMenu() {
         state.cfg.links.push(link); placeBlock({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
       } }),
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
+      navRow({ lead: svg('mic'), title: 'Voice Message', subtitle: 'Record a welcome in your own voice', onClick: () => { close(); addVoice(); } }),
       navRow({ lead: svg('star'), title: 'Shape', subtitle: 'Abstract drawings and doodles', onClick: () => { close(); addShape(); } }),
       navRow({ lead: svg('cap'), title: 'Credentials', subtitle: 'Degrees, certificates, awards, work', onClick: () => { close(); addCredentials(); } }),
       navRow({ lead: svg('post'), title: 'Post Preview', subtitle: 'Cover, title and excerpt', onClick: () => { close(); addMediaItem('post'); } }),

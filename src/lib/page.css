@@ -603,3 +603,23 @@ html.canvas-editing .space { pointer-events: auto; }
 /* Text weight chosen per item; words marked bold inside it stay a step heavier. */
 .page .stack [data-weight], .page .stack [data-weight] :is(h1, h2, h3, p, span, figcaption, li, div, a) { font-weight: var(--wt) !important; }
 .page .stack [data-weight] :is(b, strong) { font-weight: min(900, calc(var(--wt) + 300)) !important; }
+
+/* Voice message: a glass pill with a play button, the waveform and its length. Card style can change the background. */
+.voice { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 10px; border-radius: 999px; color: var(--text); background: var(--glass); border: 1px solid var(--glass-border); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); }
+.voice-play { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); }
+.voice-play svg { fill: currentColor; }
+.voice-play svg:last-child, .voice.playing .voice-play svg:first-child { display: none; }
+.voice.playing .voice-play svg:last-child { display: block; }
+.voice-body { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.voice-title { font-size: 13px; font-weight: 600; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.voice-wave { display: flex; align-items: center; gap: 2px; height: 28px; }
+.voice-wave i { flex: 1; min-width: 2px; border-radius: 2px; background: currentColor; opacity: .28; transition: opacity .2s ease; }
+.voice-wave i.on { opacity: .95; }
+.voice-time { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; opacity: .7; }
+.voice audio { display: none; }
+
+/* Music button, next to Share: plays music made in the browser, only when tapped. */
+.music { position: absolute; top: 16px; right: 60px; z-index: 3; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }
+.music.on { background: var(--accent); color: var(--on-accent); animation: music-beat 1.4s ease-in-out infinite; }
+@keyframes music-beat { 50% { transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .music.on { animation: none; } }

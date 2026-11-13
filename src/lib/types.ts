@@ -32,7 +32,7 @@ export type Credential = { kind: typeof CREDENTIAL_KINDS[number]['value']; title
 /** Background of a card item (video, post, image, credentials, bio, highlights, text). */
 export const CARD_STYLES = ['glass', 'solid', 'outline', 'none'] as const;
 export type CardStyle = typeof CARD_STYLES[number];
-export const CARD_TYPES: PageBlock['type'][] = ['youtube', 'post', 'image', 'credentials', 'bio', 'highlights', 'text'];
+export const CARD_TYPES: PageBlock['type'][] = ['youtube', 'post', 'image', 'credentials', 'bio', 'highlights', 'text', 'voice'];
 export const CREDENTIAL_LAYOUTS = ['list', 'cards', 'timeline'] as const;
 export type Highlight = { value: string; label: string };
 export const TEMPLATE_IDS = ['photo', 'classic', 'studio', 'cover', 'gallery', 'bold', 'minimal'] as const;
@@ -40,7 +40,7 @@ export type Template = typeof TEMPLATE_IDS[number];
 export type PageBlock = {
   id: string;
   design?: BlockDesign;
-  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space';
+  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space' | 'voice';
   /** Shape items: which drawing, its colors, outline, rotation and motion. */
   deco?: { shape: string; color: string; outline?: boolean; rotate?: number; motion?: ShapeMotion; from?: string; to?: string };
   /** Social icons: glyph color ('brand' or #hex) and the circle behind each icon. */
@@ -76,6 +76,10 @@ export type PageBlock = {
   wordSpacing?: number;
   /** How heavy this item's text is (300 light to 700 bold); missing = as the template designs it. */
   weight?: 300 | 400 | 500 | 600 | 700;
+  /** Voice message: the recording (a data URL, so the page stays one file), its length in seconds and its waveform (0–1 bars). */
+  audio?: string;
+  duration?: number;
+  peaks?: number[];
   /** Buttons: space between the text and the button's edge, in px (0 hugs the text). */
   pad?: number;
   /** Height chosen by stretching the item from its top or bottom edge, in px. */
@@ -104,7 +108,11 @@ export type Look = {
   color: string;
   accent: string; // '' = automatic (white on dark, black on light)
   font: FontId;
+  /** Music visitors can turn on with the ♪ button: generated in their browser (no recording, no copyright). */
+  music?: MusicStyle;
 };
+export const MUSIC_STYLES = ['lounge', 'lofi', 'ambient'] as const;
+export type MusicStyle = typeof MUSIC_STYLES[number];
 export type Config = {
   onboarded: boolean;
   profile: { name: string; handle: string; bio: string; photo: string | null; cover: string | null; photoFrame?: ImageFrame; coverFrame?: ImageFrame; showCover?: boolean; photoSize?: number; coverHeight?: number; nameAlign?: NameAlign };
@@ -137,6 +145,7 @@ export function normalize(raw: any = {}): Config {
   if (!['dark', 'light', 'auto'].includes(look.mode)) look.mode = 'dark';
   if ('spacing' in look) look.spacing = bounded(look.spacing, 8, 36);
   if ('margin' in look) look.margin = bounded(look.margin, 0, 60);
+  if (!MUSIC_STYLES.includes(look.music)) delete look.music;
   return {
     onboarded: !!c.onboarded,
     profile: { name: '', handle: '', bio: '', photo: null, cover: null, ...c.profile,
@@ -205,6 +214,10 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
         kind: CREDENTIAL_KINDS.some((k) => k.value === e.kind) ? e.kind : 'degree', title: str(e.title, 120), org: str(e.org, 120), year: str(e.year, 30),
         ...(safeImg(e.logo) ? { logo: e.logo } : {}), ...(typeof e.url === 'string' && e.url ? { url: e.url.slice(0, 500) } : {}) }));
       add({ id, type: 'credentials', ...layout, title: str(b.title, 60), entries, hidden: !!b.hidden, ...(CREDENTIAL_LAYOUTS.includes(b.variant) ? { variant: b.variant } : {}) });
+    } else if (b.type === 'voice') {
+      const peaks = Array.isArray(b.peaks) ? b.peaks.slice(0, 64).map((v: unknown) => Math.round((bounded(v, 0, 1) ?? 0) * 100) / 100) : undefined;
+      add({ id, type: 'voice', ...layout, hidden: !!b.hidden, title: typeof b.title === 'string' ? b.title.slice(0, 80) : '',
+        ...(safeAudio(b.audio) ? { audio: b.audio } : {}), ...(bounded(b.duration, 0, 600) ? { duration: Math.round(b.duration * 10) / 10 } : {}), ...(peaks?.length ? { peaks } : {}) });
     } else if (b.type === 'space') { // an empty placeholder (left where a freely moved item used to be)
       add({ id, type: 'space', ...layout, height: layout.height ?? 40 });
     } else if (b.type === 'shape') {
@@ -267,4 +280,6 @@ export function withScheme(value: string): string {
 
 export const safeUrl = (u: string) => { const v = withScheme(u); return /^(https?:|mailto:|tel:)/i.test(v) ? v : ''; };
 /** Images are https URLs or embedded in the page itself (uploads become data URLs). */
+/** Recordings are embedded in the page as data URLs (or linked over https). */
+export const safeAudio = (u?: string | null) => (u && /^(https:\/\/|data:audio\/(webm|ogg|mp4|mpeg|wav|x-m4a|aac)(;[\w=.+-]+)*;base64,)/.test(u) ? u : '');
 export const safeImg = (u?: string | null) => (u && /^(https:\/\/|data:image\/(png|jpeg|webp|gif|svg\+xml);base64,)/.test(u) ? u : '');

@@ -583,7 +583,17 @@ button.row:active { transition-duration: 0s; }
 .canvas-inspector .tile-style .seg button { font-size: 11px; padding-inline: 3px; }
 .canvas-inspector .canvas-range output { cursor: text; border-radius: 4px; }
 .canvas-inspector .canvas-range output:hover { background: var(--fill); color: var(--blue); }
-.canvas-inspector .canvas-range-edit { order: 3; width: 40px; padding: 1px 3px; border: 1px solid var(--blue); border-radius: 5px; font: inherit; font-size: 11px; text-align: right; background: var(--card); color: var(--text, inherit); }
+.canvas-inspector .canvas-range input.canvas-range-edit { order: 3; width: 40px; min-height: 0; margin: 0; padding: 1px 3px; border: 1px solid var(--blue); border-radius: 5px; font: inherit; font-size: 11px; text-align: right; background: var(--card); color: var(--text, inherit); }
 .canvas-inspector .canvas-weight { margin-top: 8px; }
 .canvas-inspector .canvas-weight > p { color: var(--sec); font-size: 11px; margin-bottom: 4px; }
 .canvas-inspector .canvas-weight .seg button { font-size: 11px; padding-inline: 3px; }
+
+/* Voice message recorder. */
+.voice-rec { display: flex; align-items: center; gap: 14px; }
+.voice-rec-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: #ff3b30; color: #fff; font-size: 15px; font-weight: 600; }
+.voice-rec-btn.stop { margin-left: auto; background: var(--fill); color: #ff3b30; }
+.voice-rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; animation: rec-blink 1s ease-in-out infinite; }
+.voice-rec-time { font-variant-numeric: tabular-nums; font-size: 15px; }
+@keyframes rec-blink { 50% { opacity: .25; } }
+.voice-preview { width: 100%; }
+.row-note { padding: 0 16px 12px; font-size: 12px; line-height: 1.4; color: var(--sec); }

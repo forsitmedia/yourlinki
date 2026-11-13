@@ -8,7 +8,8 @@ import { icon } from './icons';
 import { shapeSvg } from './shapes';
 import { platform } from './platforms';
 import { youtubeVideo, youtubeCover, postUrl, postSource, videoRatio } from './media';
-import { isVisible, safeUrl, safeImg, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
+import { MUSIC_SCRIPT } from './music';
+import { isVisible, safeUrl, safeImg, safeAudio, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
 import css from './page.css?inline';
 
 type Opts = { now?: number; preview?: boolean };
@@ -90,6 +91,7 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'youtube') blocks.push(video(block, data));
     if (block.type === 'image') blocks.push(imageBlock(block, data));
     if (block.type === 'post') blocks.push(postCard(block, data));
+    if (block.type === 'voice' && safeAudio(block.audio)) blocks.push(voiceBlock(block, data));
   }
   flush();
   return `<!doctype html>
@@ -107,12 +109,15 @@ ${fontLink([cfg.look.font, ...cfg.blocks.filter((b) => !b.hidden).map((b) => b.f
 <div class="backdrop">${photoBg ? `<img src="${esc(backgroundImage)}" alt="">` : ''}</div>
 <main class="page">
 <button class="share glass" aria-label="Share">${icon('share', 18)}</button>
+${cfg.look.music ? `<button class="music glass" type="button" data-music="${esc(cfg.look.music)}" aria-pressed="false" aria-label="Play music" title="Music">${icon('music', 17)}</button>` : ''}
 <div class="stack">${blocks.join('\n')}</div>
 </main>
 ${preview ? '' : INTRO_SCRIPT}
 ${MEDIA_SCRIPT}
 ${FIT_SCRIPT}
 ${FLOAT_SCRIPT}
+${cfg.blocks.some((b) => b.type === 'voice' && !b.hidden && safeAudio(b.audio)) ? VOICE_SCRIPT : ''}
+${cfg.look.music ? MUSIC_SCRIPT : ''}
 ${preview ? PREVIEW_SCRIPT
   : `${SCHEDULE_SCRIPT}${SHARE_SCRIPT}${cfg.stats ? statsScript(cfg.stats) : ''}\n<script type="application/json" id="${CONFIG_ID}">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>`}
 </body></html>`;
@@ -232,6 +237,15 @@ function social(cfg: Config, data: string, part?: string, color?: string): strin
 }
 
 /** Consecutive image links share a grid; every item keeps its chosen position. */
+/** A voice message: play button, waveform (fills as it plays) and its length. */
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+function voiceBlock(block: PageBlock, data: string) {
+  const peaks = block.peaks?.length ? block.peaks : Array.from({ length: 40 }, (_, i) => .35 + .3 * Math.abs(Math.sin(i * 1.7)));
+  return `<div class="voice" ${data}><button class="voice-play" type="button" aria-label="Play voice message">${icon('play', 18)}${icon('pause', 18)}</button>`
+    + `<div class="voice-body">${block.title?.trim() ? `<span class="voice-title">${esc(block.title)}</span>` : ''}`
+    + `<div class="voice-wave" aria-hidden="true">${peaks.map((p) => `<i style="height:${Math.round(12 + p * 88)}%"></i>`).join('')}</div></div>`
+    + `<span class="voice-time">${block.duration ? clock(block.duration) : ''}</span><audio preload="metadata" src="${esc(block.audio)}"></audio></div>`;
+}
 const spaceBlock = (block: PageBlock) => `<div class="space" aria-hidden="true" ${blockAttributes(block)}></div>`;
 
 function linkList(items: { link: Link | null; block: PageBlock }[], attrs: (l: Link) => string, photoBands = false): string {
@@ -387,6 +401,23 @@ document.querySelector('.share').addEventListener('click', async () => {
 
 /** Only when the creator connected their own stats worker: one anonymous ping per visit and per tap, no cookies.
  * Links stay direct. The creator's own browser (it opened the editor) is skipped. `?src=story` on the link labels the source. */
+/** Voice messages play and pause from their button; the waveform fills as it plays, and music (if on) turns down meanwhile. */
+const VOICE_SCRIPT = `<script>
+document.querySelectorAll('.voice').forEach((v) => {
+  const audio = v.querySelector('audio'), bars = [...v.querySelectorAll('.voice-wave i')], time = v.querySelector('.voice-time');
+  const clock = (s) => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+  const show = () => { const p = audio.duration ? audio.currentTime / audio.duration : 0; bars.forEach((b, i) => b.classList.toggle('on', i / bars.length < p)); if (audio.duration && isFinite(audio.duration)) time.textContent = clock(audio.paused && !audio.currentTime ? audio.duration : audio.currentTime); };
+  const state = (playing) => { v.classList.toggle('playing', playing); window.yourlinkiMusicDuck && window.yourlinkiMusicDuck(playing); };
+  v.querySelector('.voice-play').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (audio.paused) { document.querySelectorAll('.voice audio').forEach((a) => a !== audio && a.pause()); audio.play(); } else audio.pause();
+  });
+  audio.addEventListener('play', () => state(true)); audio.addEventListener('pause', () => state(false));
+  audio.addEventListener('ended', () => { audio.currentTime = 0; state(false); show(); });
+  audio.addEventListener('timeupdate', show); audio.addEventListener('loadedmetadata', show);
+});
+</script>`;
+
 const statsScript = (endpoint: string) => `<script>
 (() => {
   try { if (localStorage.getItem('yourlinki-owner')) return; } catch {}
