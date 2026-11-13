@@ -97,7 +97,13 @@ export class VisualCanvas {
       if (!block) { if (e.pointerType === 'mouse') this.boxSelect(e); return; }
       const id = block.dataset.blockId!;
       if (e.shiftKey) return; // Shift+click adds to the selection (see click)
-      if (this.multi.includes(id) || this.groupOf(id).length > 1) { pressToDrag(e, () => { if (!this.multi.includes(id)) this.selectMany(this.groupOf(id), id); this.dragMany(e, block); }); return; }
+      if (this.multi.includes(id) || this.groupOf(id).length > 1) {
+        pressToDrag(e, () => {
+          if (!this.multi.includes(id)) this.selectMany(this.groupOf(id), id);
+          if (this.freeMode || e.shiftKey) this.dragMany(e, block); else this.dragManyInOrder(e, block);
+        });
+        return;
+      }
       pressToDrag(e, () => {
         if (this.selection?.id !== id || this.selection.socialId) this.select({ id });
         this.drag(e, block);
@@ -402,6 +408,45 @@ export class VisualCanvas {
       for (const it of items) { it.b.float = { ...it.b.float!, x: Math.round((it.x + mx) / width * 10000) / 100, y: Math.round(it.y + my) }; this.applyFloat(it.b, it.el); }
       this.position();
     }, () => { this.freeDragging = false; }, handle);
+  }
+  /** With Free move off, a group (or selection) drags as one into the column: a blue line shows where it goes, and it
+   * lands there in its own order (side-by-side members stay side by side). Freely placed members rejoin the column. */
+  private dragManyInOrder(event: PointerEvent, handle: HTMLElement) {
+    const ids = [...this.multi], doc = this.doc!, win = doc.defaultView!;
+    const els = ids.map((id) => doc.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`)).filter((el): el is HTMLElement => !!el);
+    if (!els.length) return;
+    const rs = els.map((el) => el.getBoundingClientRect());
+    const box = { left: Math.min(...rs.map((r) => r.left)), top: Math.min(...rs.map((r) => r.top)), right: Math.max(...rs.map((r) => r.right)), bottom: Math.max(...rs.map((r) => r.bottom)) };
+    // The ghost: copies of every member, in their arrangement.
+    const ghost = doc.createElement('div'); ghost.className = 'canvas-ghost';
+    ghost.style.cssText = `width:${box.right - box.left}px;height:${box.bottom - box.top}px;max-height:none;overflow:visible`;
+    els.forEach((el, i) => {
+      const c = el.cloneNode(true) as HTMLElement; c.removeAttribute('data-block-id'); c.removeAttribute('data-float'); c.removeAttribute('data-free'); c.removeAttribute('data-offset');
+      c.style.cssText += `;position:absolute;left:${rs[i].left - box.left}px;top:${rs[i].top - box.top}px;width:${rs[i].width}px;margin:0;translate:none`;
+      ghost.append(c);
+    });
+    const marker = doc.createElement('div'); marker.className = 'canvas-drop';
+    const grabX = event.clientX - box.left, grabY = event.clientY - box.top;
+    let destination: ReturnType<typeof dropTarget> = null, x = event.clientX, y = event.clientY, moved = false;
+    const update = () => {
+      ghost.style.left = `${x - grabX}px`; ghost.style.top = `${y - grabY}px`;
+      const rects: BlockRect[] = this.elements().filter((el) => !ids.includes(el.dataset.blockId!)).map((el) => { const r = el.getBoundingClientRect(); return { id: el.dataset.blockId!, left: r.left, top: r.top, width: r.width, height: r.height }; });
+      destination = dropTarget(rects, x, y, '', win.innerWidth);
+      const r = rects.find((r) => r.id === destination?.id);
+      marker.hidden = !r;
+      if (r && destination) { marker.style.left = `${r.left + win.scrollX}px`; marker.style.top = `${r.top + (destination.after ? r.height : 0) + win.scrollY}px`; marker.style.width = `${r.width}px`; marker.style.height = '4px'; }
+    };
+    this.gesture(event, (e) => { moved ||= Math.hypot(e.clientX - event.clientX, e.clientY - event.clientY) >= 6; x = e.clientX; y = e.clientY; if (moved) update(); }, (cancel) => {
+      ghost.remove(); marker.remove(); els.forEach((el) => el.classList.remove('canvas-source'));
+      if (cancel || !moved || !destination) return;
+      const cfg = this.o.config(), to = destination;
+      const members = cfg.blocks.filter((b) => ids.includes(b.id));
+      cfg.blocks = cfg.blocks.filter((b) => !ids.includes(b.id) && !ids.some((id) => b.id.startsWith(`space:${id}~`)));
+      for (const b of members) { b.float = undefined; b.dx = undefined; b.dy = undefined; b.offset = undefined; }
+      const at = cfg.blocks.findIndex((b) => b.id === to.id);
+      cfg.blocks.splice(at < 0 ? cfg.blocks.length : at + (to.after ? 1 : 0), 0, ...members);
+    }, handle);
+    if (this.busy) { doc.body.append(ghost, marker); els.forEach((el) => el.classList.add('canvas-source')); update(); }
   }
   /** Group (Cmd+G) the selected items, or ungroup (Cmd+Shift+G) them. */
   group(on: boolean) {
