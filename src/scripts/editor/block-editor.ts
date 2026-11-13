@@ -13,6 +13,8 @@ import { MUSIC_LABELS, MUSIC_NOTES } from '../../lib/music';
 import { SHAPES, SHAPE_COLORS, shapeSvg } from '../../lib/shapes';
 import { linkSheet, socialSheet, mediaSheet, postSheet } from './sheets';
 import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast, dangerRow } from './ui';
+import { itemAnimationGroup } from './animation-controls';
+import { audioDetails } from '../../lib/audio-file';
 
 export function editPageBlock(id: string) {
   const { cfg } = state;
@@ -34,6 +36,7 @@ export function editPageBlock(id: string) {
     block.type === 'profile' ? profileGroup() :
     block.type === 'bio' ? group({}, ...withFormatBar(textareaRow(cfg.profile.bio, (v) => { cfg.profile.bio = v; changed(); }, 'A few words about you'))) :
     block.type === 'social' ? socialGroup() : highlightsGroup(),
+    itemAnimationGroup(block),
     group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })));
   body.append(build());
   const unsubscribe = onChange((redraw) => { if (redraw) body.replaceChildren(build()); });
@@ -252,6 +255,7 @@ export function textSheet(block: PageBlock, isNew = false) {
       ...withFormatBar(textareaRow(block.title ?? '', (v) => { block.title = v; changed(); }, 'Write anything: a heading, a note, a list, a quote…', 1200), true)),
     group({ header: 'Style' }, h('div', { class: 'row stacked' }, segmented(TEXT_STYLE_OPTIONS, block.textStyle ?? 'body', (v) => { block.textStyle = v; changed(); }))),
     group({ header: 'Alignment' }, h('div', { class: 'row stacked' }, segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), block.textAlign ?? 'center', (v) => { block.textAlign = v; changed(); }))),
+    itemAnimationGroup(block),
     group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
     group({}, dangerRow('Delete Text', () => {
       if (!isNew && !confirm('Delete this text?')) return;
@@ -436,18 +440,6 @@ export function addVoice() {
 
 /** Records (or takes an audio file), then keeps it in the page as a data URL with its length and waveform. */
 const VOICE_LIMIT = 120; // seconds
-async function audioDetails(blob: Blob) {
-  const url = await new Promise<string>((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = fail; r.readAsDataURL(blob); });
-  let duration = 0, peaks: number[] = [];
-  try {
-    const ctx = new AudioContext(), data = await ctx.decodeAudioData(await blob.arrayBuffer()); ctx.close();
-    duration = data.duration;
-    const ch = data.getChannelData(0), n = 40, size = Math.floor(ch.length / n);
-    const raw = Array.from({ length: n }, (_, i) => { let m = 0; for (let j = i * size; j < (i + 1) * size; j += 32) m = Math.max(m, Math.abs(ch[j])); return m; });
-    const top = Math.max(...raw, .01); peaks = raw.map((v) => Math.round(v / top * 100) / 100);
-  } catch {} // some formats can't be decoded here: the page shows an even waveform instead
-  return { url: url.replace(/^data:audio\/([\w.+-]+);codecs=[^;,]+/, 'data:audio/$1'), duration, peaks };
-}
 
 export function voiceSheet(block: PageBlock, isNew = false) {
   const cfg = state.cfg;
@@ -455,15 +447,17 @@ export function voiceSheet(block: PageBlock, isNew = false) {
   const body = h('div');
   const save = async (blob: Blob) => {
     if (blob.size > 4_000_000) { toast('That recording is too long. Keep it under 2 minutes.'); return; }
-    const d = await audioDetails(blob);
-    block.audio = d.url; block.duration = d.duration ? Math.round(d.duration * 10) / 10 : undefined; block.peaks = d.peaks.length ? d.peaks : undefined;
-    changed(true); draw();
+    try {
+      const d = await audioDetails(blob);
+      block.audio = d.url; block.duration = d.duration ? Math.round(d.duration * 10) / 10 : undefined; block.peaks = d.peaks.length ? d.peaks : undefined;
+      changed(true); draw();
+    } catch (e) { toast(e instanceof Error && e.message.includes('2 minutes') ? e.message : 'This audio could not be read. Try an MP3, M4A or WAV file.'); }
   };
   const stopRecording = () => { recorder?.state === 'recording' && recorder.stop(); };
   const record = async () => {
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
     catch { toast('Allow the microphone to record (check the browser\'s site settings).'); return; }
-    const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported(t));
+    const type = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported(t));
     recorder = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 48000 });
     const chunks: Blob[] = [];
     recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);

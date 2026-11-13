@@ -12,12 +12,13 @@ import { state, changed } from './state';
 import { imageFrameStyle } from '../../lib/image-frame';
 import { sortable } from './reorder';
 import { h, group, actionRow, switchRow, segmented, swatches, svg, toast, hostname } from './ui';
+import { pageAnimationGroup } from './animation-controls';
 
 let reordering = false;
 
 export function pageTab(): HTMLElement {
   const { cfg } = state;
-  return h('div', {}, contentGroup(), templatesGroup(), appearanceGroup());
+  return h('div', {}, contentGroup(), templatesGroup(), appearanceGroup(), pageAnimationGroup());
 
   function move(from: number, to: number, focus = false) {
     if (to < 0 || to >= cfg.blocks.length || from === to) return;
@@ -110,8 +111,9 @@ export function pageTab(): HTMLElement {
           if (first && cfg.look.template !== 'photo') layouts.photo ??= current; // pages made before this were arranged in Photo
           const saved = layouts[t.id];
           if (!saved) dispatchEvent(new CustomEvent('yourlinki-clean-layout', { detail: t.id })); // measured while the old template is still shown
-          const { music, disco, tools } = cfg.look;
-          cfg.look = { ...t.look, ...(music ? { music } : {}), ...(disco ? { disco } : {}), ...(tools ? { tools } : {}) };
+          const { music, disco, tools, reveal, revealDuration, revealRepeat } = cfg.look;
+          cfg.look = { ...t.look, ...(music ? { music } : {}), ...(disco ? { disco } : {}), ...(tools ? { tools } : {}),
+            ...(reveal ? { reveal } : {}), ...(revealDuration ? { revealDuration } : {}), ...(revealRepeat ? { revealRepeat } : {}) };
           if (saved) restoreLayout(cfg, saved);
           changed(true);
         } },

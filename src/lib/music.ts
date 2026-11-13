@@ -34,17 +34,30 @@ export const MUSIC_SCRIPT = `<script>
       bass: [33, 31, 29, 28] },
   };
   const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
-  let ctx, master, noise, ducked = false;
+  let ctx, master, noise, output, ducked = false;
+  const notify = () => window.dispatchEvent(new Event('yourlinki-audiochange'));
   function setup() {
     if (ctx) return;
+    window.yourlinkiAudioSession && window.yourlinkiAudioSession();
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination);
+    master = ctx.createGain(); master.gain.value = 1;
+    // Route the actual music through a media element, which mobile hosts treat as media playback.
+    // Direct Web Audio output can otherwise follow the phone's silent/ringer audio session.
+    if (ctx.createMediaStreamDestination && 'srcObject' in document.createElement('audio')) {
+      const destination = ctx.createMediaStreamDestination(); master.connect(destination);
+      output = document.createElement('audio'); output.className = 'music-output'; output.hidden = true;
+      output.setAttribute('playsinline', ''); output.setAttribute('aria-hidden', 'true'); output.srcObject = destination.stream;
+      document.body.append(output);
+    } else master.connect(ctx.destination);
     noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    ctx.addEventListener('statechange', () => {
+      if (ctx.state !== 'running') (window.yourlinkiPlayers || []).forEach((player) => { if (player.on) player.stop(); });
+    });
   }
   window.yourlinkiPlayer = (name) => {
     const style = STYLES[name] || STYLES.lounge;
-    let out, tone, drive, crackle, timer, bar = 0, beat = 0, next = 0, on = false;
+    let out, tone, drive, crackle, timer, pending, serial = 0, bar = 0, beat = 0, next = 0, on = false;
     const level = () => (ducked ? .08 : style.club ? .38 : .32);
     const wire = () => {
       if (out) return;
@@ -134,6 +147,7 @@ export const MUSIC_SCRIPT = `<script>
       else { if (beat % 2 === 1) hit(t, 3200, .22, .05); hit(t + spb / 2 + swing / 2, 6000, .08, .02, 'highpass'); }
     }
     function schedule() {
+      if (ctx.state !== 'running') return;
       while (next < ctx.currentTime + .25) {
         play(next);
         next += 60 / style.bpm;
@@ -143,19 +157,39 @@ export const MUSIC_SCRIPT = `<script>
     const player = {
       get on() { return on; },
       start() {
-        if (on) return; setup(); wire(); ctx.resume(); on = true;
-        if (style.crackle && !crackle) {
-          crackle = ctx.createBufferSource(); crackle.buffer = noise; crackle.loop = true;
-          const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 5000;
-          const g = ctx.createGain(); g.gain.value = .012; crackle.connect(f); f.connect(g); g.connect(out); crackle.start();
-        }
-        next = ctx.currentTime + .1; beat = 0;
-        out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(level(), ctx.currentTime, style.club ? .15 : .6);
-        schedule(); timer = setInterval(schedule, 60);
+        if (on) return Promise.resolve(true);
+        if (pending) return pending;
+        (window.yourlinkiPlayers || []).forEach((other) => { if (other !== player) other.stop(); });
+        window.yourlinkiAudioSession && window.yourlinkiAudioSession();
+        setup(); wire();
+        const attempt = ++serial;
+        // Both calls happen synchronously in the visitor's tap, before awaiting either promise.
+        const resume = ctx.resume(), play = output ? output.play() : Promise.resolve();
+        let timeout;
+        const task = Promise.race([
+          Promise.all([resume, play]),
+          new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Audio did not start')), 6000); }),
+        ]).then(() => {
+          if (attempt !== serial) return false;
+          if (ctx.state !== 'running' || (output && output.paused)) throw new Error('Audio is paused');
+          on = true;
+          if (style.crackle && !crackle) {
+            crackle = ctx.createBufferSource(); crackle.buffer = noise; crackle.loop = true;
+            const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 5000;
+            const g = ctx.createGain(); g.gain.value = .012; crackle.connect(f); f.connect(g); g.connect(out); crackle.start();
+          }
+          next = ctx.currentTime + .1; beat = 0;
+          out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(level(), ctx.currentTime, style.club ? .15 : .6);
+          schedule(); timer = setInterval(schedule, 60); notify(); return true;
+        }).catch((error) => { if (attempt === serial) player.stop(); throw error; })
+          .finally(() => { clearTimeout(timeout); if (pending === task) pending = null; });
+        pending = task; return task;
       },
       stop() {
-        if (!on) return; on = false; clearInterval(timer);
-        out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(0, ctx.currentTime, .25);
+        serial++; pending = null; on = false; clearInterval(timer);
+        if (out) { out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(0, ctx.currentTime, .25); }
+        if (output && !(window.yourlinkiPlayers || []).some((p) => p.on)) output.pause();
+        notify();
       },
       duck() { if (on) out.gain.setTargetAtTime(level(), ctx.currentTime, .3); },
     };
@@ -166,7 +200,15 @@ export const MUSIC_SCRIPT = `<script>
   const button = document.querySelector('.music'); if (!button) return;
   const music = window.yourlinkiPlayer(button.dataset.music);
   const show = () => { button.setAttribute('aria-pressed', String(music.on)); button.classList.toggle('on', music.on); button.setAttribute('aria-label', music.on ? 'Pause music' : 'Play music'); };
-  button.addEventListener('click', (e) => { e.preventDefault(); if (music.on) music.stop(); else { window.yourlinkiDiscoOff && window.yourlinkiDiscoOff(); music.start(); } show(); });
+  button.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (music.on) { music.stop(); show(); return; }
+    button.disabled = true; button.setAttribute('aria-busy', 'true');
+    try { window.yourlinkiDiscoOff && window.yourlinkiDiscoOff(); await music.start(); }
+    catch { window.yourlinkiAudioNotice && window.yourlinkiAudioNotice(); }
+    finally { button.disabled = false; button.removeAttribute('aria-busy'); show(); }
+  });
+  window.addEventListener('yourlinki-audiochange', show);
   window.yourlinkiMusicStop = () => { music.stop(); show(); };
 })();
 </script>`;

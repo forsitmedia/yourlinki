@@ -597,7 +597,7 @@ button.row:active { transition-duration: 0s; }
 @keyframes rec-blink { 50% { opacity: .25; } }
 .voice-preview { width: 100%; }
 .row-note { padding: 0 16px 12px; font-size: 12px; line-height: 1.4; color: var(--sec); }
-.music-select { width: 100%; padding: 8px 10px; border-radius: 9px; border: 0; background: var(--fill); color: inherit; font: inherit; font-size: 15px; }
+.music-select, .effect-select { width: 100%; padding: 8px 10px; border-radius: 9px; border: 0; background: var(--fill); color: inherit; font: inherit; font-size: 15px; }
 .group [hidden] { display: none !important; }
 .image-range output { cursor: text; border-radius: 4px; padding: 0 3px; }
 .image-range output:hover { background: var(--fill); color: var(--blue); }

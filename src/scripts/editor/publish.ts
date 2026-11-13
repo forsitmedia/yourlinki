@@ -7,6 +7,7 @@ import { normalizeImageFrame } from '../../lib/image-frame';
 import { api, signedIn, signInForm } from './account';
 import { h, group, inputRow, navRow, sheet, svg, toast } from './ui';
 import { editorPageUrl, publishedPageUrl, rememberPage } from './page-url';
+import { prepareVoiceAudio } from '../../lib/audio-file';
 
 /** On `<owner>.github.io/<repo>/editor/`, the GitHub repository this editor was published from. */
 export function githubRepo(): { owner: string; repo: string } | null {
@@ -57,6 +58,8 @@ async function shareImage(config = state.cfg): Promise<string | null> {
 
 async function publishNow(body: HTMLElement) {
   body.replaceChildren(h('div', { class: 'publish-status' }, h('span', { class: 'spinner' }), h('p', {}, 'Publishing…')));
+  try { if (await prepareVoiceAudio(state.cfg)) changed(); }
+  catch { return failed(body, 'This voice recording could not be prepared for phones. Try publishing from the browser where you recorded it, or replace it with an MP3 or WAV file.'); }
   const snapshot = JSON.stringify(state.cfg), config = JSON.parse(snapshot) as typeof state.cfg;
   const html = pageFile(config), endpoint = config.stats ?? '';
   let res: Response, data: any = {};

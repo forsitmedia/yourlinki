@@ -9,6 +9,8 @@ import { shapeSvg } from './shapes';
 import { platform } from './platforms';
 import { youtubeVideo, youtubeCover, postUrl, postSource, videoRatio } from './media';
 import { MUSIC_SCRIPT } from './music';
+import { REVEAL_EFFECTS, revealScript } from './reveal';
+import { AUDIO_SCRIPT } from './audio';
 import { isVisible, safeUrl, safeImg, safeAudio, safeFile, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
 import css from './page.css?inline';
 
@@ -117,9 +119,11 @@ ${cfg.look.disco ? `<div class="disco-lights" aria-hidden="true"><i></i><i></i><
 <div class="stack">${blocks.join('\n')}</div>
 </main>
 ${preview ? '' : INTRO_SCRIPT}
+${revealScript(cfg.look.reveal, cfg.look.revealDuration, cfg.look.revealRepeat)}
 ${MEDIA_SCRIPT}
 ${FIT_SCRIPT}
 ${FLOAT_SCRIPT}
+${cfg.look.music || cfg.look.disco || cfg.blocks.some((b) => b.type === 'voice' && !b.hidden) ? AUDIO_SCRIPT : ''}
 ${cfg.blocks.some((b) => b.type === 'voice' && !b.hidden && safeAudio(b.audio)) ? VOICE_SCRIPT : ''}
 ${cfg.blocks.some((b) => b.type === 'file' && !b.hidden && safeFile(b.file)?.startsWith('data:')) ? FILE_SCRIPT : ''}
 ${cfg.look.music || cfg.look.disco ? MUSIC_SCRIPT : ''}
@@ -133,6 +137,8 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   const design = normalizeBlockDesign(block.design);
   const styles = [designStyle(design)];
   let extra = '';
+  if (block.reveal && REVEAL_EFFECTS.includes(block.reveal)) extra += ` data-reveal="${block.reveal}"`;
+  if (typeof block.revealDelay === 'number') extra += ` data-reveal-delay="${Math.round(bounded(block.revealDelay, 0, 1000) ?? 0)}"`;
   if (block.font && FONTS[block.font]) { styles.push(`--block-font:${FONTS[block.font]}`); extra += ' data-font'; }
   const scale = bounded(block.textScale, .5, 8), offset = bounded(block.offset, -80, 120);
   if (scale && scale !== 1) { styles.push(`--text-scale:${scale}`); extra += ' data-text-scale'; }
@@ -252,7 +258,7 @@ function voiceBlock(block: PageBlock, data: string) {
   return `<div class="voice" ${data}><button class="voice-play" type="button" aria-label="Play voice message">${icon('play', 18)}${icon('pause', 18)}<svg class="voice-ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="18" pathLength="100"/><circle class="done" cx="20" cy="20" r="18" pathLength="100"/></svg></button>`
     + `<div class="voice-body">${block.title?.trim() ? `<span class="voice-title">${esc(block.title)}</span>` : ''}`
     + `<div class="voice-wave" aria-hidden="true">${peaks.map((p) => `<i style="height:${Math.round(12 + p * 88)}%"></i>`).join('')}</div></div>`
-    + `<span class="voice-time">${block.duration ? clock(block.duration) : ''}</span><audio preload="metadata" src="${esc(block.audio)}"></audio></div>`;
+    + `<span class="voice-time">${block.duration ? clock(block.duration) : ''}</span><audio preload="metadata" playsinline src="${esc(block.audio)}"></audio></div>`;
 }
 /** A PDF card: tapping it opens the PDF in the visitor's viewer. An uploaded PDF is read from the page's own config
  * (so it isn't stored twice); in the editor's preview, where there is no config, it rides on the card. */
@@ -349,6 +355,7 @@ addEventListener('resize', window.yourlinkiFit);
 /** Freely placed items sit outside the layout, so the page is made tall enough to show the lowest one. */
 const FLOAT_SCRIPT = `<script>
 window.yourlinkiFloat = () => {
+  const measure = () => {
   const stack = document.querySelector('.stack'); if (!stack) return;
   stack.style.minHeight = '';
   // A free item placed on another item (its anchor) keeps its spot on it: x and width are shares of the anchor's width,
@@ -372,6 +379,8 @@ window.yourlinkiFloat = () => {
   let bottom = 0;
   stack.querySelectorAll('[data-float]').forEach((el) => { bottom = Math.max(bottom, el.offsetTop + el.offsetHeight); });
   if (bottom) stack.style.minHeight = bottom + 24 + 'px';
+  };
+  if (window.yourlinkiMeasure) window.yourlinkiMeasure(measure); else measure();
 };
 window.yourlinkiFloat();
 addEventListener('load', window.yourlinkiFloat);
@@ -430,7 +439,8 @@ document.querySelector('.share').addEventListener('click', async () => {
 /** Voice messages play and pause from their button; the waveform fills as it plays, and music (if on) turns down meanwhile. */
 const VOICE_SCRIPT = `<script>
 document.querySelectorAll('.voice').forEach((v) => {
-  const audio = v.querySelector('audio'), bars = [...v.querySelectorAll('.voice-wave i')], time = v.querySelector('.voice-time');
+  const audio = v.querySelector('audio'), button = v.querySelector('.voice-play'), bars = [...v.querySelectorAll('.voice-wave i')], time = v.querySelector('.voice-time');
+  let blobUrl, pending = false;
   const clock = (s) => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
   const show = () => {
     const p = audio.duration && isFinite(audio.duration) ? audio.currentTime / audio.duration : 0;
@@ -439,12 +449,36 @@ document.querySelectorAll('.voice').forEach((v) => {
     seen.forEach((b, i) => b.classList.toggle('on', i / seen.length < p));
     if (audio.duration && isFinite(audio.duration)) time.textContent = clock(audio.paused && !audio.currentTime ? audio.duration : audio.currentTime);
   };
-  const state = (playing) => { v.classList.toggle('playing', playing); window.yourlinkiMusicDuck && window.yourlinkiMusicDuck(playing); };
-  v.querySelector('.voice-play').addEventListener('click', (e) => {
+  const state = (playing) => {
+    v.classList.toggle('playing', playing); button.setAttribute('aria-label', playing ? 'Pause voice message' : 'Play voice message');
+    window.yourlinkiMusicDuck && window.yourlinkiMusicDuck(!!document.querySelector('.voice.playing'));
+  };
+  const fallback = () => {
+    audio.pause(); state(false); audio.controls = true; v.classList.add('audio-fallback');
+    window.yourlinkiAudioNotice('Try the audio player below. If sound is still off, open this page in your browser.');
+  };
+  button.addEventListener('click', async (e) => {
     e.preventDefault();
-    if (audio.paused) { document.querySelectorAll('.voice audio').forEach((a) => a !== audio && a.pause()); audio.play(); } else audio.pause();
+    if (!audio.paused) { audio.pause(); return; }
+    if (pending) return;
+    let timeout;
+    try {
+      window.yourlinkiAudioSession();
+      document.querySelectorAll('.voice audio').forEach((a) => a !== audio && a.pause());
+      // A Blob URL avoids data-URL media loading failures in embedded browsers.
+      if (!blobUrl && audio.getAttribute('src').startsWith('data:')) {
+        const src = audio.getAttribute('src'), binary = atob(src.split(',')[1]);
+        blobUrl = URL.createObjectURL(new Blob([Uint8Array.from(binary, (c) => c.charCodeAt(0))], { type: src.slice(5, src.indexOf(';')) }));
+        audio.src = blobUrl; audio.load();
+      }
+      audio.muted = false; audio.volume = 1;
+      const play = audio.play(); // keep this call inside the original tap, before any await
+      pending = true; button.setAttribute('aria-busy', 'true');
+      await Promise.race([play, new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Audio did not start')), 6000); })]);
+    } catch { fallback(); }
+    finally { clearTimeout(timeout); pending = false; button.removeAttribute('aria-busy'); }
   });
-  audio.addEventListener('play', () => state(true)); audio.addEventListener('pause', () => state(false));
+  audio.addEventListener('playing', () => state(true)); audio.addEventListener('pause', () => state(false));
   audio.addEventListener('ended', () => { audio.currentTime = 0; state(false); show(); });
   audio.addEventListener('timeupdate', show); audio.addEventListener('loadedmetadata', show);
 });
@@ -454,13 +488,21 @@ document.querySelectorAll('.voice').forEach((v) => {
 const DISCO_SCRIPT = `<script>
 (() => {
   const button = document.querySelector('.disco-btn'), track = window.yourlinkiPlayer && window.yourlinkiPlayer('disco');
-  const set = (on) => {
+  const show = () => {
+    const on = !!(track && track.on);
     document.documentElement.classList.toggle('disco', on);
     button.setAttribute('aria-pressed', String(on)); button.classList.toggle('on', on);
-    if (on) { window.yourlinkiMusicStop && window.yourlinkiMusicStop(); track && track.start(); } else track && track.stop();
   };
-  button.addEventListener('click', (e) => { e.preventDefault(); set(!document.documentElement.classList.contains('disco')); });
-  window.yourlinkiDiscoOff = () => { if (document.documentElement.classList.contains('disco')) set(false); };
+  button.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (track && track.on) { track.stop(); show(); return; }
+    button.disabled = true; button.setAttribute('aria-busy', 'true');
+    try { window.yourlinkiMusicStop && window.yourlinkiMusicStop(); if (!track) throw new Error('Audio unavailable'); await track.start(); }
+    catch { window.yourlinkiAudioNotice && window.yourlinkiAudioNotice(); }
+    finally { button.disabled = false; button.removeAttribute('aria-busy'); show(); }
+  });
+  window.addEventListener('yourlinki-audiochange', show);
+  window.yourlinkiDiscoOff = () => { if (track) track.stop(); show(); };
 })();
 </script>`;
 

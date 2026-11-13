@@ -5,6 +5,7 @@ import { normalizeButtonShape, normalizeButtonStyle, type ButtonShape, type Butt
 import { normalizeSocials, socialKey } from './social-order';
 import { normalizeTileStyle, type TileStyle } from './tile-style';
 import { SHAPES, SHAPE_COLORS, SHAPE_MOTIONS, type ShapeMotion } from './shapes';
+import { REVEAL_EFFECTS, type RevealEffect } from './reveal';
 
 export type Link = {
   id: string;
@@ -39,6 +40,9 @@ export const TEMPLATE_IDS = ['photo', 'classic', 'studio', 'cover', 'gallery', '
 export type Template = typeof TEMPLATE_IDS[number];
 export type PageBlock = {
   id: string;
+  /** Scroll effect; omitted follows the page, 'none' keeps this item still. */
+  reveal?: RevealEffect;
+  revealDelay?: number;
   design?: BlockDesign;
   type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space' | 'voice' | 'file';
   /** Shape items: which drawing, its colors, outline, rotation and motion. */
@@ -110,6 +114,9 @@ export type PageBlock = {
   vertical?: boolean;
 };
 export type Look = {
+  reveal?: RevealEffect;
+  revealDuration?: number;
+  revealRepeat?: boolean;
   spacing?: number;
   /** Space between the page edges and its items, in px. */
   margin?: number;
@@ -177,6 +184,9 @@ export function normalize(raw: any = {}): Config {
   if (!MUSIC_STYLES.includes(look.music)) delete look.music;
   if (look.disco !== true) delete look.disco;
   if (!['left', 'bottom'].includes(look.tools)) delete look.tools;
+  if (!REVEAL_EFFECTS.includes(look.reveal)) delete look.reveal;
+  if (look.revealDuration !== undefined) look.revealDuration = bounded(look.revealDuration, 250, 1500);
+  if (look.revealRepeat !== true) delete look.revealRepeat;
   return {
     onboarded: !!c.onboarded,
     profile: { name: '', handle: '', bio: '', photo: null, cover: null, ...c.profile,
@@ -228,7 +238,9 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     const design = normalizeBlockDesign(b.design);
     const textScale = bounded(b.textScale, .5, 8), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900), dx = bounded(b.dx, -600, 600), dy = bounded(b.dy, -1200, 1200), rotate = bounded(b.rotate, -180, 180), pad = bounded(b.pad, 0, 40), lineHeight = bounded(b.lineHeight, .6, 2.5), wordSpacing = bounded(b.wordSpacing, -.3, 1.5);
     const icons = b.type === 'social' ? { ...(b.iconColor === 'brand' || /^#[0-9a-f]{6}$/i.test(b.iconColor) ? { iconColor: b.iconColor } : {}), ...(CARD_STYLES.includes(b.iconStyle) ? { iconStyle: b.iconStyle } : {}) } : {};
-    const layout = { ...icons, ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
+    const layout = { ...icons, ...(REVEAL_EFFECTS.includes(b.reveal) ? { reveal: b.reveal as RevealEffect } : {}),
+      ...(bounded(b.revealDelay, 0, 1000) !== undefined ? { revealDelay: Math.round(bounded(b.revealDelay, 0, 1000)!) } : {}),
+      ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
       ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(rotate ? { rotate: Math.round(rotate * 10) / 10 } : {}), ...(pad !== undefined ? { pad: Math.round(pad) } : {}), ...(lineHeight ? { lineHeight: Math.round(lineHeight * 100) / 100 } : {}), ...(wordSpacing ? { wordSpacing: Math.round(wordSpacing * 100) / 100 } : {}), ...([300, 400, 500, 600, 700].includes(b.weight) ? { weight: b.weight } : {}), ...(/^#[0-9a-f]{6}$/i.test(b.textColor) ? { textColor: b.textColor } : {}), ...(bounded(b.z, -50, 50) !== undefined ? { z: Math.round(bounded(b.z, -50, 50)!) } : {}), ...(typeof b.group === 'string' && /^[\w-]{1,24}$/.test(b.group) ? { group: b.group } : {}),
       ...(b.float && typeof b.float === 'object' && [b.float.x, b.float.y, b.float.w].every((v) => typeof v === 'number' && Number.isFinite(v))
         ? { float: typeof b.float.a === 'string' && /^[\w:~#.-]{1,80}$/.test(b.float.a)

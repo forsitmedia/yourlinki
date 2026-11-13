@@ -52,6 +52,12 @@ if (worker) {
 
 // A draft started before the worker was connected still publishes and signs in through it.
 if (draft && !draft.stats && published?.stats) draft.stats = published.stats;
+// An older draft keeps its edits while picking up the page's newly added scroll settings.
+if (draft && draft.look.reveal === undefined && published?.look.reveal !== undefined) {
+  draft.look.reveal = published.look.reveal;
+  draft.look.revealDuration = published.look.revealDuration;
+  draft.look.revealRepeat = published.look.revealRepeat;
+}
 
 export const state = {
   cfg: draft ?? published ?? normalize({}),
