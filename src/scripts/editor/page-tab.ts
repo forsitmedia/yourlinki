@@ -71,6 +71,7 @@ export function pageTab(): HTMLElement {
     if (b.type === 'name') return { title: 'Name', subtitle: extra([cfg.profile.name, cfg.profile.handle && '@' + cfg.profile.handle].filter(Boolean).join(' · ')), icon: 'text', hidden };
     if (b.type === 'bio') return { title: 'Bio', subtitle: extra(cfg.profile.bio || 'Add a few words about you'), icon: 'text', hidden };
     if (b.type === 'space') return { title: 'Empty space', subtitle: 'Only you see it while editing · tap to remove', icon: 'minus', hidden };
+    if (b.type === 'file') return { title: b.title || b.fileName || 'PDF', subtitle: extra(b.file ? (b.file.startsWith('data:') ? `PDF · ${b.fileName ?? 'uploaded'}` : `PDF · ${b.file.replace(/^https:\/\//, '')}`) : 'Tap to add a PDF'), icon: 'doc', hidden };
     if (b.type === 'voice') return { title: 'Voice message', subtitle: extra(b.audio ? `${b.title || 'Recording'}${b.duration ? ` · ${Math.floor(b.duration / 60)}:${String(Math.round(b.duration % 60)).padStart(2, '0')}` : ''}` : 'Tap to record'), icon: 'mic', hidden };
     if (b.type === 'shape') return { title: 'Shape', subtitle: extra(`${b.deco?.shape ?? 'blob'} · ${b.deco?.color ?? ''}`), icon: 'star', hidden };
     if (b.type === 'credentials') return { title: b.title || 'Credentials', subtitle: extra((b.entries ?? []).map((e) => e.title).filter(Boolean).join(' · ') || 'Add your degrees and awards'), icon: 'cap', hidden };

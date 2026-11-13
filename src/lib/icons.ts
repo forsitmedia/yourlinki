@@ -27,6 +27,7 @@ const PATHS: Record<string, string> = {
   music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   disco: '<circle cx="12" cy="13" r="8"/><path d="M12 5V2M4 13h16M12 5c-2.5 2.2-3.5 5-3.5 8s1 5.8 3.5 8M12 5c2.5 2.2 3.5 5 3.5 8s-1 5.8-3.5 8M5.5 9h13M5.5 17h13"/>',
+  doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M8 20h8M10 17h4v3h-4z"/>',
 };
 

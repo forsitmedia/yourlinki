@@ -32,7 +32,7 @@ export type Credential = { kind: typeof CREDENTIAL_KINDS[number]['value']; title
 /** Background of a card item (video, post, image, credentials, bio, highlights, text). */
 export const CARD_STYLES = ['glass', 'solid', 'outline', 'none'] as const;
 export type CardStyle = typeof CARD_STYLES[number];
-export const CARD_TYPES: PageBlock['type'][] = ['youtube', 'post', 'image', 'credentials', 'bio', 'highlights', 'text', 'voice'];
+export const CARD_TYPES: PageBlock['type'][] = ['youtube', 'post', 'image', 'credentials', 'bio', 'highlights', 'text', 'voice', 'file'];
 export const CREDENTIAL_LAYOUTS = ['list', 'cards', 'timeline'] as const;
 export type Highlight = { value: string; label: string };
 export const TEMPLATE_IDS = ['photo', 'classic', 'studio', 'cover', 'gallery', 'bold', 'minimal'] as const;
@@ -40,7 +40,7 @@ export type Template = typeof TEMPLATE_IDS[number];
 export type PageBlock = {
   id: string;
   design?: BlockDesign;
-  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space' | 'voice';
+  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space' | 'voice' | 'file';
   /** Shape items: which drawing, its colors, outline, rotation and motion. */
   deco?: { shape: string; color: string; outline?: boolean; rotate?: number; motion?: ShapeMotion; from?: string; to?: string };
   /** Social icons: glyph color ('brand' or #hex) and the circle behind each icon. */
@@ -78,6 +78,10 @@ export type PageBlock = {
   wordSpacing?: number;
   /** How heavy this item's text is (300 light to 700 bold); missing = as the template designs it. */
   weight?: 300 | 400 | 500 | 600 | 700;
+  /** PDF: the file (embedded as a data URL, or a link) with its original name and size in bytes. */
+  file?: string;
+  fileName?: string;
+  fileSize?: number;
   /** Voice message: the recording (a data URL, so the page stays one file), its length in seconds and its waveform (0–1 bars). */
   audio?: string;
   duration?: number;
@@ -243,6 +247,9 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
         kind: CREDENTIAL_KINDS.some((k) => k.value === e.kind) ? e.kind : 'degree', title: str(e.title, 120), org: str(e.org, 120), year: str(e.year, 30),
         ...(safeImg(e.logo) ? { logo: e.logo, ...(e.logoFrame ? { logoFrame: normalizeImageFrame(e.logoFrame) } : {}) } : {}), ...(typeof e.url === 'string' && e.url ? { url: e.url.slice(0, 500) } : {}) }));
       add({ id, type: 'credentials', ...layout, title: str(b.title, 60), entries, hidden: !!b.hidden, ...(CREDENTIAL_LAYOUTS.includes(b.variant) ? { variant: b.variant } : {}) });
+    } else if (b.type === 'file') {
+      add({ id, type: 'file', ...layout, hidden: !!b.hidden, title: typeof b.title === 'string' ? b.title.slice(0, 120) : '',
+        ...(safeFile(b.file) ? { file: b.file } : {}), ...(typeof b.fileName === 'string' ? { fileName: b.fileName.slice(0, 120) } : {}), ...(bounded(b.fileSize, 0, 1e9) ? { fileSize: Math.round(b.fileSize) } : {}) });
     } else if (b.type === 'voice') {
       const peaks = Array.isArray(b.peaks) ? b.peaks.slice(0, 64).map((v: unknown) => Math.round((bounded(v, 0, 1) ?? 0) * 100) / 100) : undefined;
       add({ id, type: 'voice', ...layout, hidden: !!b.hidden, title: typeof b.title === 'string' ? b.title.slice(0, 80) : '',
@@ -309,6 +316,8 @@ export function withScheme(value: string): string {
 
 export const safeUrl = (u: string) => { const v = withScheme(u); return /^(https?:|mailto:|tel:)/i.test(v) ? v : ''; };
 /** Images are https URLs or embedded in the page itself (uploads become data URLs). */
+/** PDFs are embedded in the page (data URL) or linked over https. */
+export const safeFile = (u?: string | null) => (u && /^(https:\/\/[^\s"'<>]+|data:application\/pdf;base64,[A-Za-z0-9+/=]+)$/.test(u) ? u : '');
 /** Recordings are embedded in the page as data URLs (or linked over https). */
 export const safeAudio = (u?: string | null) => (u && /^(https:\/\/|data:audio\/(webm|ogg|mp4|mpeg|wav|x-m4a|aac)(;[\w=.+-]+)*;base64,)/.test(u) ? u : '');
 export const safeImg = (u?: string | null) => (u && /^(https:\/\/|data:image\/(png|jpeg|webp|gif|svg\+xml);base64,)/.test(u) ? u : '');

@@ -25,6 +25,7 @@ export function editPageBlock(id: string) {
   if (block.type === 'credentials') return credentialsSheet(block);
   if (block.type === 'shape') return shapeSheet(block);
   if (block.type === 'voice') return voiceSheet(block);
+  if (block.type === 'file') return fileSheet(block);
   if (block.type === 'space') { if (confirm('Remove this empty space?')) { cfg.blocks = cfg.blocks.filter((b) => b.id !== id); changed(true); } return; }
   if (block.type === 'name') return editPageBlock(cfg.blocks.find((b) => b.type === 'profile')!.id); // the name is edited with the profile
   const titles: Record<string, string> = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
@@ -375,6 +376,58 @@ export function addShape() {
   shapeSheet(block, true);
 }
 
+export function addFile() {
+  const block: PageBlock = { id: `file:${uid()}`, type: 'file', title: '' };
+  placeBlock(block); changed(true);
+  fileSheet(block, true);
+}
+
+/** A PDF people can open: uploaded into the page (kept small, since every visit loads it) or linked from elsewhere. */
+const PDF_SOFT = 5_000_000, PDF_MAX = 12_000_000;
+export function fileSheet(block: PageBlock, isNew = false) {
+  const cfg = state.cfg;
+  let deleted = false;
+  const body = h('div');
+  const mb = (n: number) => `${(n / 1e6).toFixed(1)} MB`;
+  const upload = () => {
+    const input = h('input', { type: 'file', accept: 'application/pdf,.pdf' }) as HTMLInputElement;
+    input.onchange = () => {
+      const f = input.files?.[0]; if (!f) return;
+      if (f.size > PDF_MAX) { toast(`That PDF is ${mb(f.size)}. Upload one under ${mb(PDF_MAX)}, or paste a link to it instead.`); return; }
+      const r = new FileReader();
+      r.onload = () => {
+        block.file = String(r.result).replace(/^data:[^;,]*/, 'data:application/pdf'); block.fileName = f.name.slice(0, 120); block.fileSize = f.size;
+        if (!block.title) block.title = f.name.replace(/\.pdf$/i, '').slice(0, 120);
+        changed(true); draw();
+        if (f.size > PDF_SOFT) toast(`Added. At ${mb(f.size)} it makes your page slower to open; a link keeps it light.`);
+      };
+      r.readAsDataURL(f);
+    };
+    input.click();
+  };
+  const draw = () => body.replaceChildren(
+    group({ header: 'The PDF', footer: block.file?.startsWith('data:')
+        ? `${block.fileName ?? 'Uploaded'} · ${mb(block.fileSize ?? 0)}. It is stored inside your page; smaller files keep it fast.`
+        : 'Upload a PDF (best under 5 MB), or paste a link to one (Google Drive, Dropbox, your website) for any size.' },
+      navRow({ lead: svg('doc', 18), title: block.file?.startsWith('data:') ? 'Upload a Different PDF' : 'Upload PDF', subtitle: 'From your computer', onClick: upload }),
+      inputRow('Or link', block.file && !block.file.startsWith('data:') ? block.file : '', (v) => {
+        const url = withScheme(v);
+        if (url) { block.file = url; block.fileName = undefined; block.fileSize = undefined; } else if (!block.file?.startsWith('data:')) block.file = undefined;
+        changed();
+      }, { type: 'url', placeholder: 'https://…/menu.pdf' })),
+    group({ header: 'Title' }, inputRow('Title', block.title ?? '', (v) => { block.title = v; changed(); }, { placeholder: 'My CV, Menu, Price list…', max: 120 })),
+    group({}, switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
+    group({}, dangerRow('Delete PDF', () => {
+      if (!isNew && !confirm('Delete this PDF?')) return;
+      deleted = true; cfg.blocks = cfg.blocks.filter((b) => b.id !== block.id); close();
+    })));
+  draw();
+  const close = sheet(isNew ? 'New PDF' : 'PDF', () => [body], { onClose: () => {
+    if (!deleted && !block.file) state.cfg.blocks = state.cfg.blocks.filter((b) => b.id !== block.id); // nothing added: no empty card
+    changed(true);
+  } });
+}
+
 export function addVoice() {
   const block: PageBlock = { id: `voice:${uid()}`, type: 'voice', title: 'A message from me' };
   placeBlock(block); changed(true);
@@ -506,6 +559,7 @@ export function addItemMenu() {
         state.cfg.links.push(link); placeBlock({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
       } }),
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
+      navRow({ lead: svg('doc'), title: 'PDF', subtitle: 'A menu, CV, price list or guide people can open', onClick: () => { close(); addFile(); } }),
       navRow({ lead: svg('mic'), title: 'Voice Message', subtitle: 'Record a welcome in your own voice', onClick: () => { close(); addVoice(); } }),
       navRow({ lead: svg('music'), title: 'Music & Disco', subtitle: state.cfg.look.music ? `${MUSIC_LABELS[state.cfg.look.music]} · a ♪ button visitors tap` : 'Background music and a disco mode button', onClick: () => { close(); musicSheet(); } }),
       navRow({ lead: svg('minus'), title: 'Empty Space', subtitle: 'Room between items; stretch it from its top or bottom dot', onClick: () => { close(); addSpace(); } }),

@@ -9,7 +9,7 @@ import { shapeSvg } from './shapes';
 import { platform } from './platforms';
 import { youtubeVideo, youtubeCover, postUrl, postSource, videoRatio } from './media';
 import { MUSIC_SCRIPT } from './music';
-import { isVisible, safeUrl, safeImg, safeAudio, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
+import { isVisible, safeUrl, safeImg, safeAudio, safeFile, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
 import css from './page.css?inline';
 
 type Opts = { now?: number; preview?: boolean };
@@ -92,6 +92,7 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'image') blocks.push(imageBlock(block, data));
     if (block.type === 'post') blocks.push(postCard(block, data));
     if (block.type === 'voice' && safeAudio(block.audio)) blocks.push(voiceBlock(block, data));
+    if (block.type === 'file' && safeFile(block.file)) blocks.push(fileCard(block, data, preview));
   }
   flush();
   return `<!doctype html>
@@ -120,6 +121,7 @@ ${MEDIA_SCRIPT}
 ${FIT_SCRIPT}
 ${FLOAT_SCRIPT}
 ${cfg.blocks.some((b) => b.type === 'voice' && !b.hidden && safeAudio(b.audio)) ? VOICE_SCRIPT : ''}
+${cfg.blocks.some((b) => b.type === 'file' && !b.hidden && safeFile(b.file)?.startsWith('data:')) ? FILE_SCRIPT : ''}
 ${cfg.look.music || cfg.look.disco ? MUSIC_SCRIPT : ''}
 ${cfg.look.disco ? DISCO_SCRIPT : ''}
 ${preview ? PREVIEW_SCRIPT
@@ -251,6 +253,16 @@ function voiceBlock(block: PageBlock, data: string) {
     + `<div class="voice-body">${block.title?.trim() ? `<span class="voice-title">${esc(block.title)}</span>` : ''}`
     + `<div class="voice-wave" aria-hidden="true">${peaks.map((p) => `<i style="height:${Math.round(12 + p * 88)}%"></i>`).join('')}</div></div>`
     + `<span class="voice-time">${block.duration ? clock(block.duration) : ''}</span><audio preload="metadata" src="${esc(block.audio)}"></audio></div>`;
+}
+/** A PDF card: tapping it opens the PDF in the visitor's viewer. An uploaded PDF is read from the page's own config
+ * (so it isn't stored twice); in the editor's preview, where there is no config, it rides on the card. */
+const fileSizeLabel = (n?: number) => !n ? '' : n < 1e6 ? `${Math.max(1, Math.round(n / 1e3))} KB` : `${(n / 1e6).toFixed(1)} MB`;
+function fileCard(block: PageBlock, data: string, preview: boolean) {
+  const src = safeFile(block.file), embedded = src.startsWith('data:');
+  const meta = ['PDF', fileSizeLabel(block.fileSize)].filter(Boolean).join(' · ');
+  return `<a class="file-card" href="${embedded ? '#' : esc(src)}"${embedded ? ` data-file-id="${esc(block.id)}"${preview ? ` data-src="${esc(src)}"` : ''}` : ' target="_blank" rel="noopener"'} ${data}>`
+    + `<span class="file-icon">${icon('doc', 22)}<b>PDF</b></span><span class="file-text"><span class="file-title">${esc(block.title?.trim() || block.fileName || 'Document')}</span><span class="file-meta">${esc(meta)}</span></span>`
+    + `<span class="file-open">Open ${icon('arrow', 14)}</span></a>`;
 }
 const spaceBlock = (block: PageBlock) => `<div class="space" aria-hidden="true" ${blockAttributes(block)}></div>`;
 
@@ -450,6 +462,22 @@ const DISCO_SCRIPT = `<script>
   button.addEventListener('click', (e) => { e.preventDefault(); set(!document.documentElement.classList.contains('disco')); });
   window.yourlinkiDiscoOff = () => { if (document.documentElement.classList.contains('disco')) set(false); };
 })();
+</script>`;
+
+/** Opens an uploaded PDF: the file becomes a temporary address the browser's PDF viewer can show. */
+const FILE_SCRIPT = `<script>
+document.addEventListener('click', (e) => {
+  const card = e.target.closest && e.target.closest('.file-card[data-file-id]');
+  if (!card || document.documentElement.classList.contains('canvas-editing')) return;
+  e.preventDefault();
+  let src = card.dataset.src;
+  if (!src) { try { const cfg = JSON.parse(document.getElementById('yourlinki-config').textContent); src = (cfg.blocks.find((b) => b.id === card.dataset.fileId) || {}).file; } catch {} }
+  if (!src) return;
+  const bin = atob(src.split(',')[1]), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  if (!window.open(url, '_blank')) location.href = url;
+});
 </script>`;
 
 const statsScript = (endpoint: string) => `<script>

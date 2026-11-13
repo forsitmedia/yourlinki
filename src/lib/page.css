@@ -705,3 +705,14 @@ html.disco :is(.hero img, .avatar img, .profile-cover img), html.disco .backdrop
 /* Items may hang over the screen's edge on purpose: the part outside is cut off, and the page never scrolls sideways. */
 html, body { overflow-x: hidden; }
 @supports (overflow: clip) { html, body { overflow-x: clip; } }
+
+/* PDF card: icon, title, size, Open. Card style can change its background. */
+.file-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; color: var(--text); text-decoration: none; background: var(--glass); border: 1px solid var(--glass-border); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); container-type: inline-size; min-width: 0; }
+.file-icon { flex: none; position: relative; display: grid; place-items: center; width: 44px; height: 52px; border-radius: 10px; background: #ff3b30; color: #fff; }
+.file-icon svg { opacity: .35; }
+.file-icon b { position: absolute; bottom: 6px; font: 800 11px/1 system-ui, sans-serif; letter-spacing: .04em; }
+.file-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.file-title { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-meta { font-size: 12px; opacity: .65; }
+.file-open { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 600; }
+@container (max-width: 230px) { .file-open { display: none; } }
