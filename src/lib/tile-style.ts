@@ -4,6 +4,8 @@ export const TILE_TEXT = [
   { value: 'center', label: 'On image' },
   { value: 'bottom', label: 'Bottom' },
   { value: 'below', label: 'Below' },
+  { value: 'right', label: 'Right' }, // text beside the picture
+  { value: 'left', label: 'Left' },
   { value: 'none', label: 'Hidden' },
 ] as const;
 export const TILE_SHADE = [

@@ -138,7 +138,7 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
   if (dx || dy) { styles.push(`--dx:${Math.round(dx ?? 0)}px;--dy:${Math.round(dy ?? 0)}px`); extra += ' data-free'; }
-  if (block.float) { styles.push(`--fx:${+block.float.x.toFixed(2)}%;--fy:${Math.round(block.float.y)}px;--fw:${+block.float.w.toFixed(2)}%`); extra += ' data-float'; }
+  if (block.float) { styles.push(`--fx:${+block.float.x.toFixed(2)}%;--fy:${+block.float.y.toFixed(2)}px;--fw:${+block.float.w.toFixed(2)}%`); extra += ' data-float'; if (block.float.a) extra += ` data-anchor="${esc(block.float.a)}"${block.float.s ? ' data-sticker' : ''}${block.float.p ? ` data-p="${Math.round(block.float.p)}"` : ''}`; }
   const turn = bounded(block.rotate, -180, 180);
   if (turn) { styles.push(`--rot:${Math.round(turn * 10) / 10}deg`); extra += ' data-rotate'; }
   if (block.cardStyle) extra += ` data-card="${esc(block.cardStyle)}"`;
@@ -318,6 +318,23 @@ const FLOAT_SCRIPT = `<script>
 window.yourlinkiFloat = () => {
   const stack = document.querySelector('.stack'); if (!stack) return;
   stack.style.minHeight = '';
+  // A free item placed on another item (its anchor) keeps its spot on it: x and width are shares of the anchor's width,
+  // y is measured from the anchor's top. So it follows the anchor when a template, the screen or the content changes.
+  const box = stack.getBoundingClientRect();
+  stack.querySelectorAll('[data-float][data-anchor]').forEach((el) => {
+    const [id, part] = el.dataset.anchor.split('#');
+    let a = stack.querySelector('[data-block-id="' + CSS.escape(id) + '"]');
+    if (a && part) a = a.querySelector('[data-profile-part="' + part + '"]');
+    const s = getComputedStyle(el), num = (n) => parseFloat(s.getPropertyValue(n)) || 0;
+    if (!a || !a.getClientRects().length) { el.style.left = el.style.top = el.style.width = ''; return; }
+    const r = a.getBoundingClientRect(), fx = num('--fx'), fw = num('--fw');
+    // Never much narrower than when it was placed; a wider item keeps its center on the same spot, inside the page.
+    const width = Math.max(fw / 100 * r.width, (Number(el.dataset.p) || 0) * .7);
+    const center = r.left - box.left + (fx + fw / 2) / 100 * r.width;
+    el.style.left = Math.max(0, Math.min(box.width - width, center - width / 2)) + 'px';
+    el.style.top = (r.top - box.top + (el.hasAttribute('data-sticker') ? num('--fy') / 100 * r.height : num('--fy'))) + 'px';
+    el.style.width = width + 'px';
+  });
   let bottom = 0;
   stack.querySelectorAll('[data-float]').forEach((el) => { bottom = Math.max(bottom, el.offsetTop + el.offsetHeight); });
   if (bottom) stack.style.minHeight = bottom + 24 + 'px';
@@ -325,6 +342,7 @@ window.yourlinkiFloat = () => {
 window.yourlinkiFloat();
 addEventListener('load', window.yourlinkiFloat);
 addEventListener('resize', window.yourlinkiFloat);
+document.fonts && document.fonts.ready.then(window.yourlinkiFloat);
 </script>`;
 
 /** In the editor preview, links open in a new tab (the editor stays put); while editing the layout, a tap selects instead. */

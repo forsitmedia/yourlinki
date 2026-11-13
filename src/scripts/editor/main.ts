@@ -62,6 +62,7 @@ document.addEventListener('keydown', (e) => {
   if (typing || !(e.metaKey || e.ctrlKey) || (key !== 'z' && key !== 'y')) return;
   e.preventDefault(); key === 'y' || e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
 });
+addEventListener('yourlinki-before-template', () => canvas.anchorAll());
 const surface = h('div', { class: 'preview-surface' }, frame);
 const deviceArea = h('div', { class: 'device-area' }, surface);
 const stage = h('div', { class: 'stage' },

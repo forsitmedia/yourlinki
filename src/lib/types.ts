@@ -83,7 +83,9 @@ export type PageBlock = {
   dx?: number;
   dy?: number;
   /** Placed freely: lifted out of the layout and pinned at x (% of page width), y (px from the top of the items), width (% of page width). */
-  float?: { x: number; y: number; w: number };
+  /** a: the item it sits on (its anchor); x and w are then shares of the anchor's width, y px from its top (or a share of its
+   * height when s is set: placed on it, like a sticker). p: its width in px when placed, so it never shrinks much below that. */
+  float?: { x: number; y: number; w: number; a?: string; s?: 1; p?: number };
   /** Turn of the whole item in degrees (−180 to 180). */
   rotate?: number;
   /** Social icons stacked in a column instead of a row. */
@@ -185,7 +187,10 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     const layout = { ...icons, ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
       ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(rotate ? { rotate: Math.round(rotate * 10) / 10 } : {}), ...(pad !== undefined ? { pad: Math.round(pad) } : {}), ...(lineHeight ? { lineHeight: Math.round(lineHeight * 100) / 100 } : {}), ...(wordSpacing ? { wordSpacing: Math.round(wordSpacing * 100) / 100 } : {}),
       ...(b.float && typeof b.float === 'object' && [b.float.x, b.float.y, b.float.w].every((v) => typeof v === 'number' && Number.isFinite(v))
-        ? { float: { x: bounded(b.float.x, -60, 160)!, y: bounded(b.float.y, -400, 8000)!, w: bounded(b.float.w, 4, 100)! } } : {}), ...(dy ? { dy: Math.round(dy) } : {}),
+        ? { float: typeof b.float.a === 'string' && /^[\w:~#.-]{1,80}$/.test(b.float.a)
+          ? { x: bounded(b.float.x, -1000, 1000)!, y: bounded(b.float.y, -2000, 8000)!, w: bounded(b.float.w, 1, 2000)!, a: b.float.a,
+            ...(b.float.s === 1 ? { s: 1 as const } : {}), ...(bounded(b.float.p, 10, 1200) ? { p: Math.round(bounded(b.float.p, 10, 1200)!) } : {}) }
+          : { x: bounded(b.float.x, -60, 160)!, y: bounded(b.float.y, -400, 8000)!, w: bounded(b.float.w, 4, 100)! } } : {}), ...(dy ? { dy: Math.round(dy) } : {}),
       ...(CARD_STYLES.includes(b.cardStyle) && CARD_TYPES.includes(b.type) ? { cardStyle: b.cardStyle as CardStyle } : {}) };
     if ((b.type === 'social' || b.type === 'highlights') && typeof b.part === 'string' && b.part) {
       const key = `${b.type}:${b.part}`;

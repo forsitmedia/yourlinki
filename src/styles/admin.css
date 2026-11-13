@@ -580,3 +580,4 @@ button.row:active { transition-duration: 0s; }
 .canvas-inspector .font-chip span { font-size: 8.5px; white-space: nowrap; }
 .canvas-inspector .canvas-details { margin-top: 8px; padding-top: 6px; }
 .canvas-inspector .canvas-actions button { white-space: nowrap; }
+.canvas-inspector .tile-style .seg button { font-size: 11px; padding-inline: 3px; }

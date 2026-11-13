@@ -294,13 +294,56 @@ export class VisualCanvas {
   /** A free item has its own width: the same share of the page as `span` columns. `keepRight` grows it to the left. */
   private floatSpan(b: PageBlock, el: HTMLElement, span: number, keepRight: boolean) {
     if (!b.float) return;
+    this.unanchor(b, el);
     const stack = this.doc!.querySelector<HTMLElement>('.stack')!, cs = this.doc!.defaultView!.getComputedStyle(stack);
     const pad = parseFloat(cs.paddingLeft) || 0, gap = parseFloat(cs.columnGap) || 0, inner = stack.clientWidth - pad * 2;
     const w = Math.round(((inner + gap) * span / 12 - gap) / stack.clientWidth * 10000) / 100;
     b.float = { ...b.float, w, x: keepRight ? Math.round((b.float.x + b.float.w - w) * 100) / 100 : b.float.x };
     this.applyFloat(b, el);
   }
+  /** Gives every free item without an anchor one, as the page looks now (used before the template changes). */
+  anchorAll() {
+    if (!this.doc) return;
+    for (const b of this.o.config().blocks) {
+      const el = b.float && !b.float.a ? this.doc.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(b.id)}"]`) : null;
+      if (b && el) this.anchorFloat(b, el);
+    }
+  }
+  /** While a free item is edited it uses page coordinates (share of the page width, px from the top). */
+  private unanchor(b: PageBlock, el: HTMLElement) {
+    if (!b.float?.a) return;
+    const width = this.doc!.querySelector<HTMLElement>('.stack')!.clientWidth;
+    b.float = { x: Math.round(el.offsetLeft / width * 10000) / 100, y: Math.round(el.offsetTop), w: Math.round(el.offsetWidth / width * 10000) / 100 };
+    this.applyFloat(b, el);
+  }
+  /** After an edit, a free item remembers what it sits on (the item, or the photo or cover inside the profile) and its spot on it,
+   * so it follows that item when the template, the screen or the content changes. */
+  private anchorFloat(b: PageBlock, el: HTMLElement) {
+    if (!b.float || b.float.a) return;
+    const stack = this.doc!.querySelector<HTMLElement>('.stack')!, box = stack.getBoundingClientRect();
+    const left = el.offsetLeft, top = el.offsetTop, width = el.offsetWidth, cx = left + width / 2, cy = top + el.offsetHeight / 2;
+    const candidates: { key: string; r: { left: number; top: number; width: number; height: number } }[] = [];
+    for (const item of this.elements()) {
+      if (item === el || item.hasAttribute('data-float') || item.classList.contains('space') || !item.offsetHeight) continue;
+      const parts = item.dataset.blockId === 'profile' ? [...item.querySelectorAll<HTMLElement>('[data-profile-part="photo"], [data-profile-part="cover"]')] : [];
+      for (const target of [...parts, item]) {
+        const r = target.getBoundingClientRect(); if (!r.width || !r.height) continue;
+        candidates.push({ key: target === item ? item.dataset.blockId! : `${item.dataset.blockId}#${target.dataset.profilePart}`, r: { left: r.left - box.left, top: r.top - box.top, width: r.width, height: r.height } });
+      }
+    }
+    if (!candidates.length) return;
+    // What it sits on (the smallest item under its center), else the nearest item above it, else the first one.
+    const under = candidates.filter(({ r }) => cx >= r.left && cx <= r.left + r.width && cy >= r.top && cy <= r.top + r.height).sort((p, q) => p.r.width * p.r.height - q.r.width * q.r.height)[0];
+    const above = candidates.filter(({ r }) => r.top <= top).sort((p, q) => q.r.top - p.r.top)[0];
+    const anchor = under ?? above ?? candidates.sort((p, q) => p.r.top - q.r.top)[0];
+    const r = anchor.r, round = (v: number) => Math.round(v * 100) / 100;
+    b.float = { x: round((left - r.left) / r.width * 100), w: round(width / r.width * 100), a: anchor.key, p: Math.round(width),
+      ...(anchor === under ? { y: round((top - r.top) / r.height * 100), s: 1 as const } : { y: Math.round(top - r.top) }) };
+  }
   private applyFloat(b: PageBlock, el: HTMLElement) {
+    el.style.removeProperty('left'); el.style.removeProperty('top'); el.style.removeProperty('width');
+    if (b.float?.a) el.setAttribute('data-anchor', b.float.a); else el.removeAttribute('data-anchor');
+    el.toggleAttribute('data-sticker', !!b.float?.s); if (b.float?.p) el.dataset.p = String(b.float.p); else delete el.dataset.p;
     if (b.float) {
       el.style.setProperty('--fx', `${b.float.x}%`); el.style.setProperty('--fy', `${b.float.y}px`); el.style.setProperty('--fw', `${b.float.w}%`);
       el.setAttribute('data-float', '');
@@ -319,7 +362,7 @@ export class VisualCanvas {
       if (!moved) {
         if (Math.hypot(e.clientX - x, e.clientY - y) < 3) return;
         moved = true;
-        if (!b.float) this.lift(b, el);
+        if (!b.float) this.lift(b, el); else this.unanchor(b, el);
         width = this.doc!.querySelector<HTMLElement>('.stack')!.clientWidth;
         base = { x: b.float!.x / 100 * width, y: b.float!.y };
         start = el.getBoundingClientRect();
@@ -382,7 +425,11 @@ export class VisualCanvas {
     const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size; // text scales live while resizing
     this.position();
   }
-  private finish(redraw = true) { this.history.end(); this.o.commit(redraw); this.updateHistoryButtons(); }
+  private finish(redraw = true) {
+    const b = this.block(), el = this.element();
+    if (b?.float && !b.float.a && el) this.anchorFloat(b, el);
+    this.history.end(); this.o.commit(redraw); this.updateHistoryButtons();
+  }
   private action(fn: () => void) { this.history.begin(); fn(); this.finish(); this.inspector(); }
   undo() { if (this.busy) this.stopGesture?.(); this.o.undo(); }
   redo() { if (this.busy) this.stopGesture?.(); this.o.redo(); }
@@ -638,7 +685,10 @@ export class VisualCanvas {
       document.removeEventListener('pointerup', up, true); document.removeEventListener('pointermove', onOuterMove, true); win.removeEventListener('blur', cancelled);
       this.stopGesture = null; if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
       this.busy = false; this.suppressClick = true; setTimeout(() => { this.suppressClick = false; }, 0);
-      finish(cancel); if (cancel) this.history.cancel(); else this.history.end(); this.o.commit(true); this.inspector(); this.position();
+      finish(cancel);
+      if (cancel) this.history.cancel();
+      else { const fb = this.block(), fel = this.element(); if (fb?.float && !fb.float.a && fel) this.anchorFloat(fb, fel); this.history.end(); }
+      this.o.commit(true); this.inspector(); this.position();
     };
     const up = (e: PointerEvent) => { if (e.pointerId === event.pointerId) end(false); }, cancelled = () => end(true);
     doc.addEventListener('pointermove', onMove, true); doc.addEventListener('pointerup', up, true); doc.addEventListener('pointercancel', cancelled, true); handle.addEventListener('lostpointercapture', cancelled);

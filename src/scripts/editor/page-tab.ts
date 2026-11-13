@@ -94,6 +94,7 @@ export function pageTab(): HTMLElement {
       h('div', { class: 'template-grid' }, TEMPLATES.map((t) =>
         h('button', { type: 'button', class: `template-option${cfg.look.template === t.id ? ' selected' : ''}`, 'aria-pressed': String(cfg.look.template === t.id), 'aria-label': `${t.name} template`, onclick: () => {
           if (cfg.look.template === t.id) return;
+          dispatchEvent(new Event('yourlinki-before-template')); // free items remember what they sit on, measured in the old template
           cfg.look = { ...t.look };
           changed(true);
         } },
