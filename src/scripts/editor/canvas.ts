@@ -1116,12 +1116,17 @@ export class VisualCanvas {
     const doc = this.doc!, win = doc.defaultView!, rect = source.getBoundingClientRect();
     const ghost = source.cloneNode(true) as HTMLElement; ghost.removeAttribute('data-block-id'); ghost.removeAttribute('data-free'); ghost.removeAttribute('data-offset'); ghost.style.translate = 'none'; ghost.classList.add('canvas-ghost'); ghost.style.width = `${Math.min(rect.width, win.innerWidth - 16)}px`;
     const marker = doc.createElement('div'); marker.className = 'canvas-drop';
-    let destination: ReturnType<typeof dropTarget> = null, side = false, x = event.clientX, y = event.clientY, animation = 0, last = 0, moved = false;
+    let destination: ReturnType<typeof dropTarget> = null, side = false, sameRow = false, x = event.clientX, y = event.clientY, animation = 0, last = 0, moved = false;
+    // The ghost keeps the spot where the item was grabbed, so where it is let go is where it goes.
+    const grabX = event.clientX - rect.left, grabY = event.clientY - rect.top, home = { top: rect.top + win.scrollY, bottom: rect.bottom + win.scrollY };
     const update = () => {
-      ghost.style.left = `${Math.max(8, Math.min(win.innerWidth - ghost.offsetWidth - 8, x - 16))}px`; ghost.style.top = `${y - 16}px`;
+      ghost.style.left = `${Math.max(8, Math.min(win.innerWidth - ghost.offsetWidth - 8, x - grabX))}px`; ghost.style.top = `${y - grabY}px`;
       const rects: BlockRect[] = this.elements().map((el) => { const r = el.getBoundingClientRect(); return { id: el.dataset.blockId!, left: r.left, top: r.top, width: r.width, height: r.height }; });
       destination = dropTarget(rects, x, y, selection.id, win.innerWidth);
-      const r = rects.find((r) => r.id === destination?.id);
+      // Over empty space in its own row: it only slides sideways, the order stays.
+      const over = rects.some((r) => r.id !== selection.id && x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height);
+      sameRow = !over && y + win.scrollY >= home.top && y + win.scrollY <= home.bottom;
+      const r = sameRow ? undefined : rects.find((r) => r.id === destination?.id);
       marker.hidden = !r;
       if (r && destination) {
         const vertical = r.width < win.innerWidth * .7 && y >= r.top && y <= r.top + r.height;
@@ -1143,8 +1148,20 @@ export class VisualCanvas {
       if (!cancel && moved && destination) {
         // An item placed freely before rejoins the layout where it is dropped, and its empty space closes.
         const b = this.o.config().blocks.find((x) => x.id === selection.id), to = destination;
-        if (b) this.dock(b, () => moveBlock(this.o.config(), selection.id, to.id, to.after));
-        if (b && side) this.besides(b, to.id);
+        if (b && !sameRow) this.dock(b, () => moveBlock(this.o.config(), selection.id, to.id, to.after));
+        if (b && side && !sameRow) this.besides(b, to.id);
+        else if (b) {
+          // Dropped on empty space: an item narrower than the page also goes sideways, to the columns where it was let go.
+          const span = normalizeBlockDesign(b.design)?.span ?? 12;
+          if (span < 12) {
+            const stack = doc.querySelector<HTMLElement>('.stack')!, st = win.getComputedStyle(stack);
+            const pad = parseFloat(st.paddingLeft) || 0, gap = parseFloat(st.columnGap) || 0, column = (stack.clientWidth - pad * 2 + gap) / 12;
+            const left = x - grabX - stack.getBoundingClientRect().left - pad;
+            const start = Math.max(1, Math.min(13 - span, Math.round(left / column) + 1));
+            if (sameRow && b.float) this.dock(b);
+            b.design = { span, align: 'auto', start };
+          }
+        }
       }
     }, handle);
     if (this.busy) { doc.body.append(ghost, marker); source.classList.add('canvas-source'); if (this.ui) this.ui.style.opacity = '0'; update(); animation = requestAnimationFrame(tick); }
