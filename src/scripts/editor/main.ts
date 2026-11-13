@@ -56,6 +56,7 @@ onChange(() => setTimeout(refreshHistory));
 setInterval(refreshHistory, 800); // typing is grouped into one step after a pause, so check now and then too
 document.addEventListener('keydown', (e) => {
   const typing = (e.target as HTMLElement)?.closest?.('input, textarea, [contenteditable]');
+  if (!typing && (e.key === 'Delete' || e.key === 'Backspace') && !document.querySelector('.sheet')) { e.preventDefault(); canvas.deleteSelection(); refreshHistory(); return; }
   if (typing || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
   e.preventDefault(); e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
 });

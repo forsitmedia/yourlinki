@@ -557,3 +557,5 @@ button.row:active { transition-duration: 0s; }
 .stage-head .btn-text { white-space: nowrap; }
 
 .canvas-tidy { width: 100%; margin-top: 10px; min-height: 40px; border-radius: 10px; background: #8b3dff; color: #fff; font-size: 14px; font-weight: 600; }
+
+.canvas-actions .canvas-delete { color: #ff3b30; }

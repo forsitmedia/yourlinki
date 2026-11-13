@@ -17,7 +17,7 @@ import { tileStylePicker } from './tile-style-picker';
 import { TILE_PRESETS } from '../../lib/tile-style';
 import { socialGlyph } from './social-glyph';
 import { guardTouchScroll, pressToDrag } from './reorder';
-import { h, segmented, swatches } from './ui';
+import { h, segmented, swatches, toast } from './ui';
 import css from './canvas.css?inline';
 import { plain } from '../../lib/render';
 import { Guides, guideCss } from './guides';
@@ -114,6 +114,7 @@ export class VisualCanvas {
       if (!this.enabled || !this.selection) return;
       if (e.key === 'Escape') { e.preventDefault(); if (this.busy) this.stopGesture?.(); else this.select(null); }
       if (this.busy) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.deleteSelection(); return; }
       if (this.selection?.socialId && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); this.nudgeSocial(e.key === 'ArrowLeft' ? -1 : 1); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault(); e.shiftKey ? this.redo() : this.undo();
@@ -154,6 +155,33 @@ export class VisualCanvas {
   private editSelection() {
     if (this.selection?.socialId) this.o.editSocial(this.selection.socialId);
     else if (this.selection) this.o.edit(this.selection.id);
+  }
+  /** Delete key: removes the selected item. The profile, bio, highlights and social row are hidden instead (Show on page brings them back). */
+  deleteSelection() {
+    const b = this.block(); if (!b || this.busy) return;
+    const cfg = this.o.config();
+    let message = 'Deleted';
+    this.action(() => {
+      if (this.selection?.socialId) {
+        const id = this.selection.socialId;
+        cfg.social = cfg.social.filter((s, i) => socialKey(s, i) !== id);
+        message = 'Icon deleted';
+      } else if (b.type === 'name') {
+        separateName(cfg, false);
+        message = 'Name moved back to the photo';
+      } else if (['profile', 'bio', 'highlights'].includes(b.type) || (b.type === 'social' && !b.part)) {
+        b.hidden = true;
+        message = 'Hidden. Turn on Show on page to bring it back';
+      } else if (b.type === 'social' && b.part) {
+        cfg.social = cfg.social.filter((s, i) => socialKey(s, i) !== b.part);
+        message = 'Icon deleted';
+      } else {
+        if (b.type === 'link') cfg.links = cfg.links.filter((l) => l.id !== b.linkId);
+        cfg.blocks = cfg.blocks.filter((x) => x.id !== b.id);
+      }
+    });
+    this.select(null);
+    toast(`${message} · Undo with ↶`);
   }
   /** The item new things are added after: the selection, or the item nearest the middle of the view. */
   anchor(): string | null {
@@ -386,6 +414,7 @@ export class VisualCanvas {
     const crop = image?.img?.parentElement;
     const actions = h('div', { class: 'canvas-actions' },
       h('button', { type: 'button', onclick: () => this.o.edit(b.id) }, 'Edit content'),
+      h('button', { type: 'button', class: 'canvas-delete', 'aria-label': 'Delete selected item', title: 'Delete (Delete key)', onclick: () => this.deleteSelection() }, '🗑'),
       image && h('button', { type: 'button', onclick: () => {
         this.history.begin();
         adjustImage({ src: image.src, frame: image.frame, title: 'Adjust Image',
