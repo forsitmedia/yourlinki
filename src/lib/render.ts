@@ -119,7 +119,7 @@ ${MEDIA_SCRIPT}
 ${FIT_SCRIPT}
 ${FLOAT_SCRIPT}
 ${cfg.blocks.some((b) => b.type === 'voice' && !b.hidden && safeAudio(b.audio)) ? VOICE_SCRIPT : ''}
-${cfg.look.music ? MUSIC_SCRIPT : ''}
+${cfg.look.music || cfg.look.disco ? MUSIC_SCRIPT : ''}
 ${cfg.look.disco ? DISCO_SCRIPT : ''}
 ${preview ? PREVIEW_SCRIPT
   : `${SCHEDULE_SCRIPT}${SHARE_SCRIPT}${cfg.stats ? statsScript(cfg.stats) : ''}\n<script type="application/json" id="${CONFIG_ID}">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>`}
@@ -421,19 +421,17 @@ document.querySelectorAll('.voice').forEach((v) => {
 });
 </script>`;
 
-/** Disco mode: a class on the page turns on the lights and the dancing; music starts with it when the page has some. */
+/** Disco mode: a class on the page turns on the lights and the dancing, with its own club track (the ♪ music pauses). */
 const DISCO_SCRIPT = `<script>
 (() => {
-  const button = document.querySelector('.disco-btn'), music = document.querySelector('.music');
-  let startedMusic = false;
-  button.addEventListener('click', (e) => {
-    e.preventDefault();
-    const on = !document.documentElement.classList.contains('disco');
+  const button = document.querySelector('.disco-btn'), track = window.yourlinkiPlayer && window.yourlinkiPlayer('disco');
+  const set = (on) => {
     document.documentElement.classList.toggle('disco', on);
     button.setAttribute('aria-pressed', String(on)); button.classList.toggle('on', on);
-    if (music && on && music.getAttribute('aria-pressed') !== 'true') { music.click(); startedMusic = true; }
-    if (music && !on && startedMusic && music.getAttribute('aria-pressed') === 'true') { music.click(); startedMusic = false; }
-  });
+    if (on) { window.yourlinkiMusicStop && window.yourlinkiMusicStop(); track && track.start(); } else track && track.stop();
+  };
+  button.addEventListener('click', (e) => { e.preventDefault(); set(!document.documentElement.classList.contains('disco')); });
+  window.yourlinkiDiscoOff = () => { if (document.documentElement.classList.contains('disco')) set(false); };
 })();
 </script>`;
 

@@ -40,6 +40,8 @@ html.canvas-editing .social:has(.canvas-part-selected):hover { outline: none; }
 .canvas-ui .canvas-rotate:active { cursor: grabbing; }
 .canvas-angle { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, calc(100% + 48px)); padding: 2px 7px; border-radius: 6px; background: #8b3dff; color: #fff; font: 600 11px/1.5 system-ui; pointer-events: none; }
 
-/* Empty space placeholders: striped so they can be found, resized or removed. Invisible on the published page. */
-html.canvas-editing .space { border-radius: 12px; outline: 1.5px dashed #8b3dff99; outline-offset: -1px; background: repeating-linear-gradient(135deg, #8b3dff12 0 8px, transparent 8px 16px); position: relative; }
-html.canvas-editing .space::after { content: 'Empty space'; position: absolute; inset: 0; display: grid; place-items: center; font: 600 11px system-ui; color: #8b3dffb0; }
+/* Empty space (where a free-moved item used to be): a faint outline, fully shown only when hovered or selected. Visitors never see it. */
+html.canvas-editing .space { border-radius: 12px; outline: 1px dashed #8b3dff40; outline-offset: -1px; position: relative; transition: outline-color .15s, background .15s; }
+html.canvas-editing .space::after { content: 'Empty space'; position: absolute; inset: 0; display: grid; place-items: center; font: 600 11px system-ui; color: #8b3dffb0; opacity: 0; transition: opacity .15s; }
+html.canvas-editing .space:is(:hover, .canvas-selected) { outline: 1.5px dashed #8b3dff99; background: repeating-linear-gradient(135deg, #8b3dff12 0 8px, transparent 8px 16px); }
+html.canvas-editing .space:is(:hover, .canvas-selected)::after { opacity: 1; }

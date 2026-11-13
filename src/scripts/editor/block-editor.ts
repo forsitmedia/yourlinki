@@ -9,7 +9,7 @@ import { state, changed, onChange, uid, placeBlock, addAt, type AddAt } from './
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
 import { BOLD, LINK } from '../../lib/render';
-import { MUSIC_LABELS } from '../../lib/music';
+import { MUSIC_LABELS, MUSIC_NOTES } from '../../lib/music';
 import { SHAPES, SHAPE_COLORS, shapeSvg } from '../../lib/shapes';
 import { linkSheet, socialSheet, mediaSheet, postSheet } from './sheets';
 import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast, dangerRow } from './ui';
@@ -450,20 +450,20 @@ export function musicSheet() {
   const look = state.cfg.look;
   const body = h('div');
   const pageButton = (cls: string) => document.querySelector<HTMLIFrameElement>('.preview-surface iframe, iframe')?.contentDocument?.querySelector<HTMLButtonElement>(cls);
-  const listen = () => {
-    const play = () => { const b = pageButton('.music'); if (b) { b.click(); setTimeout(draw, 50); } };
-    if (pageButton('.music')) play(); else setTimeout(play, 400); // the preview is being redrawn with the button
-  };
   const playing = () => pageButton('.music')?.getAttribute('aria-pressed') === 'true';
+  const toggle = () => { pageButton('.music')?.click(); setTimeout(draw, 50); };
+  /** Choosing a style plays it straight away: the preview is redrawn with the new music first. */
+  const playChosen = () => setTimeout(() => { if (!playing()) toggle(); }, 450);
   const draw = () => body.replaceChildren(
     group({ header: 'Background music', footer: 'Visitors see a ♪ button next to Share and the music starts only when they tap it. It is made live in their browser, so there is nothing to license and no copyright.' },
-      ...([['', 'Off', 'No music button'], ...MUSIC_STYLES.map((m) => [m, MUSIC_LABELS[m], { lounge: 'Soft piano chords, walking bass, brushes', lofi: 'Mellow keys, gentle beat, vinyl crackle', ambient: 'Slow, airy pads and chimes' }[m]])] as [string, string, string][]).map(([value, title, subtitle]) =>
+      ...([['', 'Off', 'No music button'], ...MUSIC_STYLES.map((m) => [m, MUSIC_LABELS[m], MUSIC_NOTES[m]])] as [string, string, string][]).map(([value, title, subtitle]) =>
         navRow({ title, subtitle, chevron: false, trail: (look.music ?? '') === value ? svg('check', 18) : undefined, onClick: () => {
-          const wasPlaying = playing(); if (wasPlaying) pageButton('.music')?.click();
+          if (playing()) pageButton('.music')?.click();
           look.music = (value || undefined) as typeof look.music; changed(true); draw();
+          if (value) playChosen();
         } })),
-      look.music ? actionRow(playing() ? '❚❚ Stop listening' : '▶ Listen', listen) : null),
-    group({ header: 'Disco mode', footer: 'A 🪩 button: lights sweep across the page, items dance and the music starts. Everything still works; tap again to stop.' },
+      look.music ? actionRow(playing() ? '❚❚ Pause' : '▶ Resume', toggle) : null),
+    group({ header: 'Disco mode', footer: 'A 🪩 button: lights sweep across the page, items dance and a disco club track plays. Everything still works; tap again to stop.' },
       switchRow('Disco button', !!look.disco, (v) => { look.disco = v || undefined; changed(true); }),
       look.disco ? actionRow('Try it', () => { const b = pageButton('.disco-btn'); if (b) b.click(); else setTimeout(() => pageButton('.disco-btn')?.click(), 400); }) : null));
   draw();

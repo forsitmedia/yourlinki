@@ -122,7 +122,7 @@ export type TemplateLayout = {
   spacing?: number;
   margin?: number;
 };
-export const MUSIC_STYLES = ['lounge', 'lofi', 'ambient'] as const;
+export const MUSIC_STYLES = ['lounge', 'lofi', 'ambient', 'rock', 'bossa', 'synthwave'] as const;
 export type MusicStyle = typeof MUSIC_STYLES[number];
 export type Config = {
   onboarded: boolean;

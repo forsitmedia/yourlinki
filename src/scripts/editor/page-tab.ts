@@ -142,7 +142,8 @@ export function pageTab(): HTMLElement {
       }, false)),
       line('Button Color', swatches(['', '#ffffff', '#000000', '#0a84ff', '#ff375f', '#ff9f0a', '#30d158', '#bf5af2'], look.accent, (v) => set('accent', v))),
       line('Font', fontControl),
-      line('Music', segmented([{ value: '', label: 'Off' }, ...MUSIC_STYLES.map((m) => ({ value: m, label: MUSIC_LABELS[m] }))], look.music ?? '', (v) => set('music', (v || undefined) as Look['music'], true))),
+      line('Music', h('select', { class: 'music-select', onchange: (e: Event) => set('music', ((e.target as HTMLSelectElement).value || undefined) as Look['music'], true) },
+        [['', 'Off'], ...MUSIC_STYLES.map((m) => [m, MUSIC_LABELS[m]])].map(([value, label]) => h('option', { value, selected: (look.music ?? '') === value }, label)))),
       switchRow('Disco button 🪩', !!look.disco, (v) => set('disco', v || undefined, true)),
       look.music && h('p', { class: 'row-note' }, 'A ♪ button appears next to Share. Music starts only when a visitor taps it, and it is made live in their browser, so there is no copyright. Try it in Preview.'));
   }
