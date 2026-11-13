@@ -40,6 +40,7 @@ export class VisualCanvas {
   private detailsOpen = false;
   private guides: Guides | null = null;
   private freeDragging = false;
+  private toolTap = 0;
   /** Free move: dragging an item places it anywhere (other items stay put) instead of changing the order. Shift does the same for one drag. */
   private freeMode = (() => { try { return localStorage.getItem('yourlinki-free-move') === '1'; } catch { return false; } })();
   constructor(private o: Options) { this.history = new LayoutHistory(o.config); }
@@ -98,9 +99,16 @@ export class VisualCanvas {
       if (!this.enabled) return;
       const target = e.target as HTMLElement;
       if (!target?.closest || target.closest('.canvas-ui')) return;
-      // Music and disco buttons: a double-click opens their settings, so a tap doesn't play while editing
-      // (the settings sheet still plays them through untrusted, scripted clicks).
-      if (target.closest('.page-tools')) { if (e.isTrusted) { e.preventDefault(); e.stopImmediatePropagation(); } return; }
+      // Music and disco buttons: a tap plays them as on the page, a double-click opens their settings instead.
+      // The tap waits a moment to see whether a second one follows; it then goes through as a scripted (untrusted) click.
+      const tool = target.closest<HTMLButtonElement>('.page-tools button');
+      if (tool) {
+        if (!e.isTrusted) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (this.toolTap) { clearTimeout(this.toolTap); this.toolTap = 0; dispatchEvent(new Event('yourlinki-open-music')); return; }
+        this.toolTap = window.setTimeout(() => { this.toolTap = 0; tool.click(); }, 260);
+        return;
+      }
       e.preventDefault(); e.stopImmediatePropagation();
       if (this.busy || this.suppressClick) { this.suppressClick = false; return; }
       const block = target.closest<HTMLElement>('[data-block-id]');
@@ -125,14 +133,13 @@ export class VisualCanvas {
     doc.addEventListener('pointerdown', press);
     doc.addEventListener('contextmenu', menu);
     doc.addEventListener('click', click, true);
-    const openTools = (e: MouseEvent) => { if ((e.target as HTMLElement).closest?.('.page-tools')) { e.preventDefault(); dispatchEvent(new Event('yourlinki-open-music')); } };
-    doc.addEventListener('dblclick', openTools);
+
     doc.addEventListener('keydown', key);
     const update = () => this.position();
     win.addEventListener('scroll', update, { passive: true }); win.addEventListener('resize', update);
     const observer = new ResizeObserver(update); observer.observe(doc.querySelector('.stack')!);
     this.dispose = () => {
-      this.stopGesture?.(); socialStarts.forEach((remove) => remove()); observer.disconnect(); doc.removeEventListener('pointerdown', press); doc.removeEventListener('contextmenu', menu); doc.removeEventListener('click', click, true); doc.removeEventListener('dblclick', openTools); doc.removeEventListener('keydown', key);
+      this.stopGesture?.(); socialStarts.forEach((remove) => remove()); observer.disconnect(); doc.removeEventListener('pointerdown', press); doc.removeEventListener('contextmenu', menu); doc.removeEventListener('click', click, true); doc.removeEventListener('keydown', key);
       win.removeEventListener('scroll', update); win.removeEventListener('resize', update); ui.remove(); style.remove(); this.guides?.remove(); this.guides = null;
     };
     if (this.pendingNew) {
