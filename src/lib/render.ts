@@ -212,7 +212,7 @@ function credentials(block: PageBlock, data: string): string {
   const items = entries.map((e) => {
     const kind = CREDENTIAL_KINDS.find((k) => k.value === e.kind) ?? CREDENTIAL_KINDS[0];
     // The icon stays underneath the logo: if a pasted logo address stops working, the icon shows instead of a broken image.
-    const badge = `<span class="cred-badge cred-${kind.value}">${icon(kind.icon, variant === 'cards' ? 22 : 20)}${safeImg(e.logo) ? `<img src="${esc(safeImg(e.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
+    const badge = `<span class="cred-badge cred-${kind.value}">${icon(kind.icon, variant === 'cards' ? 22 : 20)}${safeImg(e.logo) ? `<img src="${esc(safeImg(e.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"${e.logoFrame ? ` style="${esc(imageFrameStyle(e.logoFrame))};padding:0"` : ''}>` : ''}</span>`;
     const url = safeUrl(e.url ?? '');
     const copy = `<span class="cred-copy"><b>${rich(e.title)}</b>${e.org ? `<span>${esc(e.org)}</span>` : ''}</span>`;
     const year = e.year ? `<time>${esc(e.year)}</time>` : '';

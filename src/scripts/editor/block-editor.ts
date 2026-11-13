@@ -288,11 +288,16 @@ export function credentialsSheet(block: PageBlock, isNew = false) {
     navRow({
       lead: safeImg(e.logo) ? h('img', { src: safeImg(e.logo), alt: '' }) : svg('photo', 18),
       title: e.logo ? 'Upload a Different Logo' : 'Upload Logo', subtitle: 'Or choose a file from your computer',
-      onClick: async () => { try { const url = await pickImage(240); if (url) { e.logo = url; changed(true); draw(); } } catch (err: any) { toast(err.message); } },
+      onClick: async () => { try { const url = await pickImage(240); if (url) { e.logo = url; e.logoFrame = undefined; changed(true); draw(); } } catch (err: any) { toast(err.message); } },
+    }),
+    safeImg(e.logo) && navRow({
+      lead: svg('photo', 18), title: 'Adjust Logo', subtitle: e.logoFrame ? 'Zoom and position set' : 'Zoom in, move it, or fill the square',
+      onClick: () => adjustImage({ src: safeImg(e.logo), title: 'Adjust Logo', aspect: 1, frame: e.logoFrame ?? { x: 50, y: 50, zoom: 1, fit: 'contain' },
+        onChange: (frame) => { e.logoFrame = frame; changed(); }, onFinish: () => { changed(true); draw(); } }),
     }),
     h('div', { class: 'row cred-entry-actions' },
       h('button', { type: 'button', class: 'btn-text', disabled: i === 0, onclick: () => { entries.splice(i - 1, 0, entries.splice(i, 1)[0]); changed(true); draw(); } }, 'Move up'),
-      e.logo && h('button', { type: 'button', class: 'btn-text', onclick: () => { e.logo = null; changed(true); draw(); } }, 'Remove logo'),
+      e.logo && h('button', { type: 'button', class: 'btn-text', onclick: () => { e.logo = null; e.logoFrame = undefined; changed(true); draw(); } }, 'Remove logo'),
       h('button', { type: 'button', class: 'btn-text red', onclick: () => { entries.splice(i, 1); changed(true); draw(); } }, 'Remove')));
   const draw = () => body.replaceChildren(
     group({ footer: 'A short heading, like Education, Certifications or Awards. Leave empty for none.' },

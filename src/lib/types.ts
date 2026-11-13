@@ -28,7 +28,7 @@ export const CREDENTIAL_KINDS = [
   { value: 'work', label: 'Work', icon: 'briefcase' },
 ] as const;
 /** One degree, certificate, award or role in a Credentials item. */
-export type Credential = { kind: typeof CREDENTIAL_KINDS[number]['value']; title: string; org: string; year: string; logo?: string | null; url?: string };
+export type Credential = { kind: typeof CREDENTIAL_KINDS[number]['value']; title: string; org: string; year: string; logo?: string | null; logoFrame?: ImageFrame; url?: string };
 /** Background of a card item (video, post, image, credentials, bio, highlights, text). */
 export const CARD_STYLES = ['glass', 'solid', 'outline', 'none'] as const;
 export type CardStyle = typeof CARD_STYLES[number];
@@ -228,7 +228,7 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
       const str = (v: unknown, max: number) => typeof v === 'string' ? v.slice(0, max) : '';
       const entries: Credential[] = (Array.isArray(b.entries) ? b.entries : []).filter((e: any) => e && typeof e === 'object').slice(0, 12).map((e: any) => ({
         kind: CREDENTIAL_KINDS.some((k) => k.value === e.kind) ? e.kind : 'degree', title: str(e.title, 120), org: str(e.org, 120), year: str(e.year, 30),
-        ...(safeImg(e.logo) ? { logo: e.logo } : {}), ...(typeof e.url === 'string' && e.url ? { url: e.url.slice(0, 500) } : {}) }));
+        ...(safeImg(e.logo) ? { logo: e.logo, ...(e.logoFrame ? { logoFrame: normalizeImageFrame(e.logoFrame) } : {}) } : {}), ...(typeof e.url === 'string' && e.url ? { url: e.url.slice(0, 500) } : {}) }));
       add({ id, type: 'credentials', ...layout, title: str(b.title, 60), entries, hidden: !!b.hidden, ...(CREDENTIAL_LAYOUTS.includes(b.variant) ? { variant: b.variant } : {}) });
     } else if (b.type === 'voice') {
       const peaks = Array.isArray(b.peaks) ? b.peaks.slice(0, 64).map((v: unknown) => Math.round((bounded(v, 0, 1) ?? 0) * 100) / 100) : undefined;
