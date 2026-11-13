@@ -355,8 +355,14 @@ export class VisualCanvas {
     const value = this.doc?.defaultView?.getComputedStyle(this.element()!).gridColumnEnd.match(/span\s+(\d+)/);
     return value ? Number(value[1]) : 12;
   }
+  /** Width is set in one place only: changing it drops the old Side inset, so the item is exactly as wide as chosen. */
+  private clearInset(b: PageBlock, el: HTMLElement) {
+    if (!b.inset) return;
+    b.inset = undefined; el.style.removeProperty('--inset'); el.removeAttribute('data-inset');
+  }
   private applySpan(value: number) {
     const b = this.block(), el = this.element(); if (!b || !el) return;
+    this.clearInset(b, el);
     const span = Math.round(bounded(value, 2, 12) ?? 12);
     b.design = { span, align: b.design?.align ?? 'auto', ...(b.design?.start ? { start: Math.min(b.design.start, 13 - span) } : {}) };
     if (b.float) this.floatSpan(b, el, span, false);
@@ -522,9 +528,6 @@ export class VisualCanvas {
       segmented(TEXT_STYLE_OPTIONS, b.textStyle ?? 'body', (v) => this.action(() => { b.textStyle = v; })),
       h('p', { style: 'margin-top:10px' }, 'Alignment'),
       segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), b.textAlign ?? 'center', (v) => this.action(() => { b.textAlign = v; }))) : null;
-    const inset = this.range('Side inset', b.inset ?? 0, 0, 80, 1, (v) => {
-      b.inset = v || undefined; el.style.setProperty('--inset', `${v}px`); el.toggleAttribute('data-inset', !!v);
-    }, (v) => `${v}px`);
     const card = CARD_TYPES.includes(b.type) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Card style'),
       cardPicker(b.cardStyle ?? (b.type === 'highlights' || b.type === 'text' || (b.type === 'bio' && el.classList.contains('tagline')) ? 'none' : 'glass'),
         (value) => this.action(() => { b.cardStyle = value; el.dataset.card = value; }))) : null;
@@ -534,7 +537,7 @@ export class VisualCanvas {
     const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
       b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);
     }, (v) => `${v}°`);
-    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(lineSpacing ? [lineSpacing] : []), ...(wordSpacing ? [wordSpacing] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]), ...(rotation ? [rotation] : []));
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(lineSpacing ? [lineSpacing] : []), ...(wordSpacing ? [wordSpacing] : []), ...(this.selection?.part === 'name' ? [] : [offset]), ...(rotation ? [rotation] : []));
     this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [this.iconColors(b)] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
@@ -686,6 +689,7 @@ export class VisualCanvas {
         if (across === 'right') this.applySpan(columns);
         else {
           const first = Math.max(1, end - columns + 1);
+          this.clearInset(b, el);
           b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
           el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
           if (b.float) this.floatSpan(b, el, b.design.span, true);
@@ -708,6 +712,7 @@ export class VisualCanvas {
       }
       if (across === 'left') {
         const first = Math.max(1, Math.min(end - 1, Math.round(start + (e.clientX - x) / column)));
+        this.clearInset(b, el);
         b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
         el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
         if (b.float) this.floatSpan(b, el, b.design.span, true);
