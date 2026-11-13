@@ -607,9 +607,9 @@ html.canvas-editing .space { pointer-events: auto; }
 /* Voice message: a glass pill with a play button, the waveform and its length. Card style can change the background. */
 .voice { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 10px; border-radius: 999px; color: var(--text); background: var(--glass); border: 1px solid var(--glass-border); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); }
 .voice-play { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); }
-.voice-play svg { fill: currentColor; }
-.voice-play svg:last-child, .voice.playing .voice-play svg:first-child { display: none; }
-.voice.playing .voice-play svg:last-child { display: block; }
+.voice-play svg:not(.voice-ring) { fill: currentColor; }
+.voice-play svg:nth-of-type(2), .voice.playing .voice-play svg:nth-of-type(1) { display: none; }
+.voice.playing .voice-play svg:nth-of-type(2) { display: block; }
 .voice-body { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .voice-title { font-size: 13px; font-weight: 600; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .voice-wave { display: flex; align-items: center; gap: 2px; height: 28px; }
@@ -663,18 +663,32 @@ html.disco :is(.hero img, .avatar img, .profile-cover img), html.disco .backdrop
 .page .stack [data-tc], .page .stack [data-tc] :is(h1, h2, h3, p, span, figcaption, li, div, a, strong, em, u, s, .handle) { color: var(--tc) !important; }
 .page .stack [data-tc] li::marker { color: var(--tc); }
 
-/* The voice message fits any size: narrower shows a smaller player, very narrow just play and length. */
+/* The voice message fits any size. Full: play, label, waveform, length. Medium: a section of the waveform.
+   Small: play and length centered, the button pulsing gently; a ring around it fills while it plays. */
 .voice { container-type: inline-size; min-width: 0; overflow: hidden; box-sizing: border-box; }
 .voice-body, .voice-wave { min-width: 0; overflow: hidden; }
 .voice-wave i { min-width: 1px; }
+.voice-play { position: relative; }
+.voice-ring { position: absolute; inset: -5px; width: calc(100% + 10px); height: calc(100% + 10px); transform: rotate(-90deg); pointer-events: none; overflow: visible; }
+.voice-ring circle { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 100; }
+.voice-ring .track { opacity: 0; stroke-dashoffset: 0; }
+.voice-ring .done { stroke-dashoffset: calc(100 - var(--p, 0) * 100); opacity: 0; transition: stroke-dashoffset .25s linear, opacity .2s; }
+.voice.playing .voice-ring .done, .voice[data-progress] .voice-ring .done { opacity: .95; }
 .stack .voice[data-height] .voice-play { width: min(64px, calc(var(--h) - 20px)); height: min(64px, calc(var(--h) - 20px)); }
 @container (max-width: 250px) {
   .voice-play { width: 34px; height: 34px; }
-  .voice-play svg { width: 15px; height: 15px; }
+  .voice-play svg:not(.voice-ring) { width: 15px; height: 15px; }
   .voice-title { font-size: 11px; }
-  .voice-wave { height: 20px; gap: 1px; }
+  .voice-wave { height: 20px; gap: 2px; }
+  .voice-wave i:nth-child(n+17) { display: none; }
   .voice-time { font-size: 10px; }
 }
 @container (max-width: 160px) {
   .voice-body { display: none; }
+  .voice-play { margin-left: auto; width: 40px; height: 40px; }
+  .voice-time { margin-right: auto; font-size: 13px; font-weight: 600; opacity: .85; }
+  .voice-ring .track { opacity: .22; }
+  .voice:not(.playing) .voice-play::after { content: ''; position: absolute; inset: 0; border-radius: 50%; animation: voice-pulse 2.4s ease-out infinite; }
 }
+@keyframes voice-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
+@media (prefers-reduced-motion: reduce) { .voice-play::after { animation: none !important; } }

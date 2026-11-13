@@ -246,7 +246,7 @@ function social(cfg: Config, data: string, part?: string, color?: string): strin
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 function voiceBlock(block: PageBlock, data: string) {
   const peaks = block.peaks?.length ? block.peaks : Array.from({ length: 40 }, (_, i) => .35 + .3 * Math.abs(Math.sin(i * 1.7)));
-  return `<div class="voice" ${data}><button class="voice-play" type="button" aria-label="Play voice message">${icon('play', 18)}${icon('pause', 18)}</button>`
+  return `<div class="voice" ${data}><button class="voice-play" type="button" aria-label="Play voice message">${icon('play', 18)}${icon('pause', 18)}<svg class="voice-ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="18" pathLength="100"/><circle class="done" cx="20" cy="20" r="18" pathLength="100"/></svg></button>`
     + `<div class="voice-body">${block.title?.trim() ? `<span class="voice-title">${esc(block.title)}</span>` : ''}`
     + `<div class="voice-wave" aria-hidden="true">${peaks.map((p) => `<i style="height:${Math.round(12 + p * 88)}%"></i>`).join('')}</div></div>`
     + `<span class="voice-time">${block.duration ? clock(block.duration) : ''}</span><audio preload="metadata" src="${esc(block.audio)}"></audio></div>`;
@@ -418,7 +418,13 @@ const VOICE_SCRIPT = `<script>
 document.querySelectorAll('.voice').forEach((v) => {
   const audio = v.querySelector('audio'), bars = [...v.querySelectorAll('.voice-wave i')], time = v.querySelector('.voice-time');
   const clock = (s) => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
-  const show = () => { const p = audio.duration ? audio.currentTime / audio.duration : 0; bars.forEach((b, i) => b.classList.toggle('on', i / bars.length < p)); if (audio.duration && isFinite(audio.duration)) time.textContent = clock(audio.paused && !audio.currentTime ? audio.duration : audio.currentTime); };
+  const show = () => {
+    const p = audio.duration && isFinite(audio.duration) ? audio.currentTime / audio.duration : 0;
+    v.style.setProperty('--p', p.toFixed(3)); v.toggleAttribute('data-progress', p > 0); // the ring around the play button
+    const seen = bars.filter((b) => b.offsetParent); // a narrow player shows only part of the waveform
+    seen.forEach((b, i) => b.classList.toggle('on', i / seen.length < p));
+    if (audio.duration && isFinite(audio.duration)) time.textContent = clock(audio.paused && !audio.currentTime ? audio.duration : audio.currentTime);
+  };
   const state = (playing) => { v.classList.toggle('playing', playing); window.yourlinkiMusicDuck && window.yourlinkiMusicDuck(playing); };
   v.querySelector('.voice-play').addEventListener('click', (e) => {
     e.preventDefault();
