@@ -1,6 +1,6 @@
 import type { Config, PageBlock } from '../../lib/types';
 import { safeImg } from '../../lib/types';
-import { LayoutHistory, bounded, designStyle, dropTarget, moveBlock, separateName, separateGroup, sizeTier, type BlockRect } from '../../lib/layout';
+import { LayoutHistory, bounded, normalizeBlockDesign, designStyle, dropTarget, moveBlock, separateName, separateGroup, sizeTier, type BlockRect } from '../../lib/layout';
 import { TEXT_STYLE_OPTIONS } from './block-editor';
 import { NAME_ALIGN, FONT_IDS, type FontId } from '../../lib/types';
 import { FONTS, FONT_LABELS } from '../../lib/look';
@@ -261,6 +261,18 @@ export class VisualCanvas {
     }
     const c = this.o.config(); c.blocks = c.blocks.filter((x) => !x.id.startsWith(mine));
     b.float = undefined; b.dx = undefined; b.dy = undefined;
+  }
+  /** Magnet: an item dropped on the side of another one sits beside it in the same row. It takes the room left
+   * in that row, the neighbour's height, and drops the old spacing that would push it out of the row. */
+  private besides(b: PageBlock, id: string) {
+    const cfg = this.o.config(), other = cfg.blocks.find((x) => x.id === id); if (!other) return;
+    const neighbour = this.doc?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
+    let span = normalizeBlockDesign(other.design)?.span ?? 12;
+    if (span > 9) span = 8; // a full-width neighbour makes room
+    other.design = { span, align: 'auto' }; // both flow side by side, from the left
+    b.design = { span: Math.max(2, 12 - span), align: 'auto' };
+    b.offset = undefined; b.inset = undefined;
+    if (neighbour && (b.height || b.type === 'shape' || b.type === 'image')) b.height = Math.round(Math.max(24, Math.min(900, neighbour.offsetHeight)));
   }
   /** Puts every freely moved item back in the layout at the height it was left, removes empty spaces and Space above. */
   private tidy() {
@@ -744,7 +756,7 @@ export class VisualCanvas {
     const doc = this.doc!, win = doc.defaultView!, rect = source.getBoundingClientRect();
     const ghost = source.cloneNode(true) as HTMLElement; ghost.removeAttribute('data-block-id'); ghost.removeAttribute('data-free'); ghost.removeAttribute('data-offset'); ghost.style.translate = 'none'; ghost.classList.add('canvas-ghost'); ghost.style.width = `${Math.min(rect.width, win.innerWidth - 16)}px`;
     const marker = doc.createElement('div'); marker.className = 'canvas-drop';
-    let destination: ReturnType<typeof dropTarget> = null, x = event.clientX, y = event.clientY, animation = 0, last = 0, moved = false;
+    let destination: ReturnType<typeof dropTarget> = null, side = false, x = event.clientX, y = event.clientY, animation = 0, last = 0, moved = false;
     const update = () => {
       ghost.style.left = `${Math.max(8, Math.min(win.innerWidth - ghost.offsetWidth - 8, x - 16))}px`; ghost.style.top = `${y - 16}px`;
       const rects: BlockRect[] = this.elements().map((el) => { const r = el.getBoundingClientRect(); return { id: el.dataset.blockId!, left: r.left, top: r.top, width: r.width, height: r.height }; });
@@ -753,6 +765,7 @@ export class VisualCanvas {
       marker.hidden = !r;
       if (r && destination) {
         const vertical = r.width < win.innerWidth * .7 && y >= r.top && y <= r.top + r.height;
+        side = vertical;
         marker.style.left = `${(vertical ? r.left + (destination.after ? r.width : 0) : r.left) + win.scrollX}px`;
         marker.style.top = `${(vertical ? r.top : r.top + (destination.after ? r.height : 0)) + win.scrollY}px`;
         marker.style.width = vertical ? '4px' : `${r.width}px`; marker.style.height = vertical ? `${r.height}px` : '4px';
@@ -771,6 +784,7 @@ export class VisualCanvas {
         // An item placed freely before rejoins the layout where it is dropped, and its empty space closes.
         const b = this.o.config().blocks.find((x) => x.id === selection.id), to = destination;
         if (b) this.dock(b, () => moveBlock(this.o.config(), selection.id, to.id, to.after));
+        if (b && side) this.besides(b, to.id);
       }
     }, handle);
     if (this.busy) { doc.body.append(ghost, marker); source.classList.add('canvas-source'); if (this.ui) this.ui.style.opacity = '0'; update(); animation = requestAnimationFrame(tick); }
