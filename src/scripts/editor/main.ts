@@ -63,6 +63,7 @@ document.addEventListener('keydown', (e) => {
   if (!typing && (e.metaKey || e.ctrlKey) && !document.querySelector('.sheet') && !getSelection()?.toString()) {
     if (key === 'c' && canvas.copySelection()) { e.preventDefault(); return; }
     if (key === 'v' && canvas.paste()) { e.preventDefault(); refreshHistory(); return; }
+    if (key === 'g') { e.preventDefault(); canvas.group(!e.shiftKey); refreshHistory(); return; }
   }
   if (typing || !(e.metaKey || e.ctrlKey) || (key !== 'z' && key !== 'y')) return;
   e.preventDefault(); key === 'y' || e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();

@@ -80,6 +80,8 @@ export type PageBlock = {
   audio?: string;
   duration?: number;
   peaks?: number[];
+  /** Items grouped together (same id) are selected, moved, copied and deleted as one. */
+  group?: string;
   /** Text color of this item; missing = as the design draws it. */
   textColor?: string;
   /** Buttons: space between the text and the button's edge, in px (0 hugs the text). */
@@ -219,7 +221,7 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     const textScale = bounded(b.textScale, .5, 8), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900), dx = bounded(b.dx, -600, 600), dy = bounded(b.dy, -1200, 1200), rotate = bounded(b.rotate, -180, 180), pad = bounded(b.pad, 0, 40), lineHeight = bounded(b.lineHeight, .6, 2.5), wordSpacing = bounded(b.wordSpacing, -.3, 1.5);
     const icons = b.type === 'social' ? { ...(b.iconColor === 'brand' || /^#[0-9a-f]{6}$/i.test(b.iconColor) ? { iconColor: b.iconColor } : {}), ...(CARD_STYLES.includes(b.iconStyle) ? { iconStyle: b.iconStyle } : {}) } : {};
     const layout = { ...icons, ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
-      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(rotate ? { rotate: Math.round(rotate * 10) / 10 } : {}), ...(pad !== undefined ? { pad: Math.round(pad) } : {}), ...(lineHeight ? { lineHeight: Math.round(lineHeight * 100) / 100 } : {}), ...(wordSpacing ? { wordSpacing: Math.round(wordSpacing * 100) / 100 } : {}), ...([300, 400, 500, 600, 700].includes(b.weight) ? { weight: b.weight } : {}), ...(/^#[0-9a-f]{6}$/i.test(b.textColor) ? { textColor: b.textColor } : {}),
+      ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(rotate ? { rotate: Math.round(rotate * 10) / 10 } : {}), ...(pad !== undefined ? { pad: Math.round(pad) } : {}), ...(lineHeight ? { lineHeight: Math.round(lineHeight * 100) / 100 } : {}), ...(wordSpacing ? { wordSpacing: Math.round(wordSpacing * 100) / 100 } : {}), ...([300, 400, 500, 600, 700].includes(b.weight) ? { weight: b.weight } : {}), ...(/^#[0-9a-f]{6}$/i.test(b.textColor) ? { textColor: b.textColor } : {}), ...(typeof b.group === 'string' && /^[\w-]{1,24}$/.test(b.group) ? { group: b.group } : {}),
       ...(b.float && typeof b.float === 'object' && [b.float.x, b.float.y, b.float.w].every((v) => typeof v === 'number' && Number.isFinite(v))
         ? { float: typeof b.float.a === 'string' && /^[\w:~#.-]{1,80}$/.test(b.float.a)
           ? { x: bounded(b.float.x, -1000, 1000)!, y: bounded(b.float.y, -2000, 8000)!, w: bounded(b.float.w, 1, 2000)!, a: b.float.a,

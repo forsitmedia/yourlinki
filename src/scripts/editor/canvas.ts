@@ -42,6 +42,8 @@ export class VisualCanvas {
   private freeDragging = false;
   private toolTap = 0;
   private clip = '';
+  /** Several items selected (box, Shift+click or a group): their ids. Empty for a single selection. */
+  private multi: string[] = [];
   private typing: HTMLElement | null = null;
   private typedBefore = false;
   private pointer: { x: number; y: number } | null = null;
@@ -92,9 +94,11 @@ export class VisualCanvas {
       if (this.typing && this.typing.contains(target)) return; // placing the cursor or selecting words
       if (!target?.closest || target.closest('.canvas-ui, .social:not([data-part]) [data-social-id]')) return;
       const block = target.closest<HTMLElement>('[data-block-id]');
-      if (!block) return;
+      if (!block) { if (e.pointerType === 'mouse') this.boxSelect(e); return; }
+      const id = block.dataset.blockId!;
+      if (e.shiftKey) return; // Shift+click adds to the selection (see click)
+      if (this.multi.includes(id) || this.groupOf(id).length > 1) { pressToDrag(e, () => { if (!this.multi.includes(id)) this.selectMany(this.groupOf(id), id); this.dragMany(e, block); }); return; }
       pressToDrag(e, () => {
-        const id = block.dataset.blockId!;
         if (this.selection?.id !== id || this.selection.socialId) this.select({ id });
         this.drag(e, block);
       });
@@ -122,6 +126,14 @@ export class VisualCanvas {
       const part = target.closest<HTMLElement>('[data-profile-part]')?.dataset.profilePart as Selection['part'];
       const socialId = block.hasAttribute('data-part') ? undefined : target.closest<HTMLElement>('[data-social-id]')?.dataset.socialId;
       const id = block.dataset.blockId!, current = this.selection;
+      if (e.shiftKey && !part && !socialId) { // Shift+click: add or remove (with its group)
+        const now = this.multi.length ? this.multi : current ? this.groupOf(current.id) : [];
+        const these = this.groupOf(id), next = now.includes(id) ? now.filter((x) => !these.includes(x)) : [...now, ...these.filter((x) => !now.includes(x))];
+        if (next.length > 1) this.selectMany(next, next[next.length - 1]); else this.select(next.length ? { id: next[0] } : null);
+        return;
+      }
+      if (this.groupOf(id).length > 1 && !this.multi.includes(id)) { this.selectMany(this.groupOf(id), id); return; }
+      if (this.multi.length > 1 && this.multi.includes(id)) { this.selectMany(this.multi, id); return; }
       // A second tap on what is already selected (or a double-click) opens its editor.
       if (current && current.id === id && current.part === part && current.socialId === socialId) { this.editSelection(e); return; }
       this.select({ id, ...(part ? { part } : {}), ...(socialId ? { socialId } : {}) });
@@ -131,6 +143,7 @@ export class VisualCanvas {
       // Undo works in the page too, with or without a selection.
       if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase())) { e.preventDefault(); e.key.toLowerCase() === 'y' || e.shiftKey ? this.redo() : this.undo(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { if (this.paste()) e.preventDefault(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); this.group(!e.shiftKey); return; }
       if (!this.enabled || !this.selection) return;
       if (e.key === 'Escape') { e.preventDefault(); if (this.busy) this.stopGesture?.(); else this.select(null); }
       if (this.busy) return;
@@ -211,6 +224,12 @@ export class VisualCanvas {
   /** Delete key: removes the selected item. The profile, bio, highlights and social row are hidden instead (Show on page brings them back). */
   /** Copy (Cmd/Ctrl+C): keeps the selected item, as it is now, to paste as many times as wanted. */
   copySelection() {
+    if (this.enabled && !this.busy && this.multi.length > 1) {
+      const cfg = this.o.config(), blocks = cfg.blocks.filter((b) => this.multi.includes(b.id) && !['profile', 'name', 'bio', 'highlights', 'social', 'space'].includes(b.type));
+      this.clip = JSON.stringify({ blocks, links: cfg.links.filter((l) => blocks.some((b) => b.linkId === l.id)) });
+      try { localStorage.setItem('yourlinki-clip', this.clip); } catch {}
+      toast(`${blocks.length} items copied. Press ⌘V / Ctrl+V to paste.`); return true;
+    }
     const b = this.block(); if (!this.enabled || this.busy || !b || this.selection?.socialId || this.selection?.part) return false;
     if (['profile', 'name', 'bio', 'highlights', 'social'].includes(b.type)) { toast('This item is one of a kind, so it can\'t be copied.'); return true; }
     const cfg = this.o.config(), link = b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId) : undefined;
@@ -224,7 +243,9 @@ export class VisualCanvas {
     if (!this.enabled || this.busy) return false;
     let clip = this.clip; if (!clip) { try { clip = localStorage.getItem('yourlinki-clip') ?? ''; } catch {} }
     if (!clip) return false;
-    const { block, link } = JSON.parse(clip) as { block: PageBlock; link?: Config['links'][number] };
+    const parsed = JSON.parse(clip);
+    if (parsed.blocks) return this.pasteMany(parsed.blocks, parsed.links ?? []);
+    const { block, link } = parsed as { block: PageBlock; link?: Config['links'][number] };
     const key = Math.random().toString(36).slice(2, 8);
     const copy: PageBlock = { ...structuredClone(block), id: `${block.type}:${key}` };
     // Where you are working: the pointer if it is over the page, else the middle of what is on screen.
@@ -246,7 +267,47 @@ export class VisualCanvas {
     this.select({ id: copy.id });
     return true;
   }
+  /** Pastes a copied selection where you are working: free items keep their arrangement around the pointer, the others go in the column together. */
+  private pasteMany(blocks: PageBlock[], links: Config['links']) {
+    const win = this.doc!.defaultView!, box = this.doc!.querySelector<HTMLElement>('.stack')!.getBoundingClientRect();
+    const p = this.pointer && this.pointer.y >= 0 && this.pointer.y <= win.innerHeight ? this.pointer : { x: win.innerWidth / 2, y: win.innerHeight / 2 };
+    const groups = new Map<string, string>(), key = () => Math.random().toString(36).slice(2, 8);
+    const copies = blocks.map((b) => {
+      const c: PageBlock = { ...structuredClone(b), id: `${b.type}:${key()}` };
+      if (c.group) { if (!groups.has(c.group)) groups.set(c.group, key() + key()); c.group = groups.get(c.group); }
+      return { c, from: b };
+    });
+    // Free items: the copy keeps their arrangement, its top-left item landing at the pointer.
+    const free = copies.filter(({ from }) => from.float).map(({ c, from }) => ({ c, el: this.doc!.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(from.id)}"]`) }));
+    const left = Math.min(...free.map(({ el }) => el?.getBoundingClientRect().left ?? box.left)), top = Math.min(...free.map(({ el }) => el?.getBoundingClientRect().top ?? box.top));
+    for (const { c, el } of free) {
+      const r = el?.getBoundingClientRect() ?? new DOMRect(left, top, box.width * .4, 60);
+      c.float = { x: Math.round((p.x + r.left - left - box.left) / box.width * 10000) / 100, y: Math.round(p.y + r.top - top - box.top), w: Math.round(r.width / box.width * 10000) / 100 };
+    }
+    const above = this.elements().filter((el) => !el.hasAttribute('data-float') && el.getClientRects().length && el.getBoundingClientRect().top + el.offsetHeight / 2 <= p.y).pop()?.dataset.blockId;
+    this.action(() => {
+      const cfg = this.o.config();
+      for (const { c, from } of copies) {
+        const l = links.find((x) => x.id === from.linkId);
+        if (l) { const id = key(); cfg.links.push({ ...structuredClone(l), id }); c.linkId = id; c.id = `link:${id}`; }
+      }
+      const at = above ? cfg.blocks.findIndex((x) => x.id === above) + 1 : cfg.blocks.findIndex((x) => x.type === 'profile') + 1;
+      cfg.blocks.splice(at, 0, ...copies.map(({ c }) => c));
+    });
+    this.selectMany(copies.map(({ c }) => c.id));
+    return true;
+  }
   deleteSelection() {
+    if (this.multi.length > 1 && !this.busy) {
+      const ids = this.multi, cfg = this.o.config(), keep = ['profile', 'name', 'bio', 'highlights', 'social'];
+      this.action(() => {
+        for (const b of cfg.blocks) if (ids.includes(b.id) && keep.includes(b.type)) b.hidden = true;
+        const gone = cfg.blocks.filter((b) => ids.includes(b.id) && !keep.includes(b.type));
+        cfg.links = cfg.links.filter((l) => !gone.some((b) => b.linkId === l.id));
+        cfg.blocks = cfg.blocks.filter((b) => !gone.includes(b));
+      });
+      this.select(null); toast(`${ids.length} items deleted · Undo with ↶`); return;
+    }
     const b = this.block(); if (!b || this.busy) return;
     const cfg = this.o.config();
     let message = 'Deleted';
@@ -286,12 +347,78 @@ export class VisualCanvas {
     return best;
   }
   private block() { return this.o.config().blocks.find((b) => b.id === this.selection?.id); }
-  private select(selection: Selection | null) { this.selection = selection; this.position(); this.inspector(); }
+  private select(selection: Selection | null) { this.selection = selection; this.multi = []; this.position(); this.inspector(); }
+  /** Several items at once: they are outlined together and move, copy, delete and group as one. */
+  private selectMany(ids: string[], main = ids[0]) { this.selection = { id: main }; this.multi = [...new Set(ids)]; this.position(); this.inspector(); }
+  /** The item and every item grouped with it. */
+  private groupOf(id: string) {
+    const blocks = this.o.config().blocks, g = blocks.find((b) => b.id === id)?.group;
+    return g ? blocks.filter((b) => b.group === g).map((b) => b.id) : [id];
+  }
+  /** Drag on an empty part of the page: a box selects every item it touches (whole groups). */
+  private boxSelect(event: PointerEvent) {
+    const doc = this.doc!, win = doc.defaultView!, x0 = event.clientX, y0 = event.clientY;
+    let box: HTMLElement | null = null, hit: string[] = [];
+    const move = (e: PointerEvent) => {
+      if (!box) { if (Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return; box = doc.createElement('div'); box.className = 'canvas-marquee'; doc.body.append(box); }
+      const l = Math.min(x0, e.clientX), t = Math.min(y0, e.clientY), r = Math.max(x0, e.clientX), b = Math.max(y0, e.clientY);
+      box.style.cssText = `left:${l + win.scrollX}px;top:${t + win.scrollY}px;width:${r - l}px;height:${b - t}px`;
+      hit = [...new Set(this.elements().filter((el) => { const q = el.getBoundingClientRect(); return q.width && q.right > l && q.left < r && q.bottom > t && q.top < b; })
+        .flatMap((el) => this.groupOf(el.dataset.blockId!)))];
+      this.markMany(hit);
+    };
+    const up = () => {
+      doc.removeEventListener('pointermove', move, true); doc.removeEventListener('pointerup', up, true);
+      if (!box) return; // a plain click on empty space: the click handler deselects
+      box.remove(); this.suppressClick = true; setTimeout(() => { this.suppressClick = false; }, 0);
+      if (hit.length > 1) this.selectMany(hit); else this.select(hit.length ? { id: hit[0] } : null);
+    };
+    doc.addEventListener('pointermove', move, true); doc.addEventListener('pointerup', up, true);
+  }
+  private markMany(ids: string[]) {
+    this.doc?.querySelectorAll('.canvas-multi').forEach((el) => el.classList.remove('canvas-multi'));
+    for (const el of this.elements()) if (ids.includes(el.dataset.blockId!)) el.classList.add('canvas-multi');
+  }
+  /** Moves every selected item together, keeping their spacing (they become freely placed, like a free move). */
+  private dragMany(event: PointerEvent, handle: HTMLElement) {
+    const ids = [...this.multi], x = event.clientX, y = event.clientY;
+    let moved = false, width = 1, items: { b: PageBlock; el: HTMLElement; x: number; y: number }[] = [];
+    this.freeDragging = true;
+    this.gesture(event, (e) => {
+      if (!moved) {
+        if (Math.hypot(e.clientX - x, e.clientY - y) < 3) return;
+        moved = true;
+        width = this.doc!.querySelector<HTMLElement>('.stack')!.clientWidth;
+        const cfg = this.o.config();
+        items = ids.flatMap((id) => {
+          const b = cfg.blocks.find((x) => x.id === id), el = this.doc!.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
+          if (!b || !el || b.type === 'space') return [];
+          if (!b.float) this.lift(b, el); else this.unanchor(b, el);
+          return [{ b, el, x: 0, y: 0 }];
+        });
+        for (const it of items) { it.x = it.b.float!.x / 100 * width; it.y = it.b.float!.y; }
+      }
+      const mx = e.clientX - x, my = e.clientY - y;
+      for (const it of items) { it.b.float = { ...it.b.float!, x: Math.round((it.x + mx) / width * 10000) / 100, y: Math.round(it.y + my) }; this.applyFloat(it.b, it.el); }
+      this.position();
+    }, () => { this.freeDragging = false; }, handle);
+  }
+  /** Group (Cmd+G) the selected items, or ungroup (Cmd+Shift+G) them. */
+  group(on: boolean) {
+    const ids = this.multi.length > 1 ? this.multi : this.selection ? this.groupOf(this.selection.id) : [];
+    if (ids.length < 2) { if (on) toast('Select two or more items first: drag a box around them, or Shift+click.'); return false; }
+    const id = Math.random().toString(36).slice(2, 10);
+    this.action(() => { for (const b of this.o.config().blocks) if (ids.includes(b.id)) b.group = on ? id : undefined; });
+    this.selectMany(ids, this.selection?.id);
+    toast(on ? 'Grouped: they now select and move together' : 'Ungrouped');
+    return true;
+  }
   private position() {
     if (!this.doc || !this.ui) return;
     this.doc.querySelectorAll('.canvas-selected,.canvas-part-selected').forEach((el) => el.classList.remove('canvas-selected', 'canvas-part-selected'));
     const target = this.target();
-    this.ui.hidden = !this.enabled || !target;
+    this.markMany(this.enabled ? this.multi : []);
+    this.ui.hidden = !this.enabled || !target || this.multi.length > 1; // several items: no resize handles, drag any of them
     this.ui.classList.toggle('is-social', !!this.selection?.socialId);
     if (!this.enabled || !target) return;
     target.classList.add(this.selection?.part || this.selection?.socialId ? 'canvas-part-selected' : 'canvas-selected');
@@ -472,6 +599,7 @@ export class VisualCanvas {
     }, () => { this.freeDragging = false; this.guides?.clear(); }, handle);
   }
   private title() {
+    if (this.multi.length > 1) return `${this.multi.length} items`;
     const b = this.block(), cfg = this.o.config();
     if (!b) return 'Tap an item to select';
     if (this.selection?.socialId) { const item = cfg.social.find((s, i) => socialKey(s, i) === this.selection?.socialId); return `${platform(item?.platform ?? '')?.label ?? 'Social'} icon`; }
@@ -611,6 +739,16 @@ export class VisualCanvas {
       h('button', { type: 'button', class: 'canvas-free' + (this.freeMode ? ' on' : ''), 'aria-pressed': String(this.freeMode), title: 'Free move: drag items anywhere, with guides. Off: dragging changes the order. Hold Shift for one free drag.',
         onclick: () => { this.freeMode = !this.freeMode; try { localStorage.setItem('yourlinki-free-move', this.freeMode ? '1' : '0'); } catch {} this.inspector(); } }, '✥ Free'), // purple when on
       h('button', { type: 'button', class: 'canvas-add', onclick: () => { this.pendingNew = new Set(this.o.config().blocks.map((b) => b.id)); this.o.add(); } }, '+ Add'));
+    if (this.multi.length > 1) {
+      const cfg = this.o.config(), g = cfg.blocks.find((x) => x.id === this.multi[0])?.group;
+      const grouped = !!g && this.multi.every((id) => cfg.blocks.find((x) => x.id === id)?.group === g);
+      this.o.inspector.replaceChildren(tools,
+        h('p', { class: 'canvas-help' }, `${grouped ? 'Group' : 'Selection'} of ${this.multi.length} items. Drag any of them to move them together. Shift+click adds or removes an item; ⌘C / ⌘V copies them all.`),
+        h('div', { class: 'canvas-actions' },
+          h('button', { type: 'button', class: 'canvas-group-btn', onclick: () => this.group(!grouped) }, grouped ? 'Ungroup' : 'Group'),
+          h('button', { type: 'button', class: 'canvas-delete', 'aria-label': 'Delete selected items', title: 'Delete (Delete key)', onclick: () => this.deleteSelection() }, '🗑')));
+      return;
+    }
     const b = this.block(), el = this.element();
     if (!b || !el) {
       this.o.inspector.replaceChildren(tools, h('p', { class: 'canvas-help' }, 'Drag any item to move it (on a phone, press and hold first). Tap an item, then drag its corner to resize it; double-click the corner to reset.'),
@@ -851,7 +989,13 @@ export class VisualCanvas {
       this.busy = false; this.suppressClick = true; setTimeout(() => { this.suppressClick = false; }, 0);
       finish(cancel);
       if (cancel) this.history.cancel();
-      else { const fb = this.block(), fel = this.element(); if (fb?.float && !fb.float.a && fel) this.anchorFloat(fb, fel); this.history.end(); }
+      else {
+        for (const id of this.multi.length > 1 ? this.multi : [this.selection?.id]) {
+          const fb = this.o.config().blocks.find((b) => b.id === id), fel = id ? this.doc?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`) : null;
+          if (fb?.float && !fb.float.a && fel) this.anchorFloat(fb, fel);
+        }
+        this.history.end();
+      }
       this.o.commit(true); this.inspector(); this.position();
     };
     const up = (e: PointerEvent) => { if (e.pointerId === event.pointerId) end(false); }, cancelled = () => end(true);
