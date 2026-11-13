@@ -237,7 +237,8 @@ export class VisualCanvas {
     const left = el.offsetLeft + (b.dx ?? 0), top = el.offsetTop + (b.dy ?? 0) + (b.offset ?? 0);
     // Nothing else moves: an empty space takes the item's place (striped in the editor, invisible on the page).
     const cfg = this.o.config(), at = cfg.blocks.indexOf(b);
-    const space: PageBlock = { id: `space:${Math.random().toString(36).slice(2, 8)}`, type: 'space', height: Math.max(24, Math.round(el.offsetHeight)), ...(b.design ? { design: { ...b.design } } : {}) };
+    // The space is tagged with the item's id, so putting the item back in the layout removes it again.
+    const space: PageBlock = { id: `space:${b.id}~${Math.random().toString(36).slice(2, 8)}`, type: 'space', height: Math.max(24, Math.round(el.offsetHeight)), ...(b.design ? { design: { ...b.design } } : {}) };
     cfg.blocks.splice(at, 1, space); cfg.blocks.push(b); // a free item's place in the list doesn't matter
     const placeholder = this.doc!.createElement('div');
     placeholder.className = 'space'; placeholder.dataset.blockId = space.id; placeholder.setAttribute('data-height', '');
@@ -246,6 +247,20 @@ export class VisualCanvas {
     b.float = { x: left / width * 100, y: top, w: el.offsetWidth / width * 100 };
     b.dx = undefined; b.dy = undefined; b.offset = undefined;
     this.applyFloat(b, el);
+  }
+  /** A freely placed item rejoins the column at the height it is now (or after `after`), and the empty space it left closes. */
+  private dock(b: PageBlock, place?: () => void) {
+    const centers = new Map(this.elements().map((el) => { const r = el.getBoundingClientRect(); return [el.dataset.blockId!, r.top + r.height / 2]; }));
+    const cfg = this.o.config(), mine = `space:${b.id}~`;
+    if (place) place();
+    else {
+      const y = centers.get(b.id) ?? Infinity;
+      cfg.blocks = cfg.blocks.filter((x) => x !== b);
+      const at = cfg.blocks.findIndex((x) => !x.float && (centers.get(x.id) ?? -Infinity) > y);
+      if (at < 0) cfg.blocks.push(b); else cfg.blocks.splice(at, 0, b);
+    }
+    const c = this.o.config(); c.blocks = c.blocks.filter((x) => !x.id.startsWith(mine));
+    b.float = undefined; b.dx = undefined; b.dy = undefined;
   }
   /** Puts every freely moved item back in the layout at the height it was left, removes empty spaces and Space above. */
   private tidy() {
@@ -503,7 +518,7 @@ export class VisualCanvas {
         (value) => this.action(() => { b.cardStyle = value; el.dataset.card = value; }))) : null;
     const free = b.float || b.dx || b.dy ? h('div', { class: 'canvas-free-info' },
       h('span', {}, 'Placed freely: it stays exactly here, other items never push it.'),
-      h('button', { type: 'button', onclick: () => this.action(() => { b.float = undefined; b.dx = undefined; b.dy = undefined; }) }, 'Put back in layout')) : null;
+      h('button', { type: 'button', onclick: () => this.action(() => this.dock(b)) }, 'Put back in layout')) : null;
     const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
       b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);
     }, (v) => `${v}°`);
@@ -736,9 +751,9 @@ export class VisualCanvas {
     this.gesture(event, (e) => { moved ||= Math.hypot(e.clientX - event.clientX, e.clientY - event.clientY) >= 6; x = e.clientX; y = e.clientY; if (moved) update(); }, (cancel) => {
       cancelAnimationFrame(animation); ghost.remove(); marker.remove(); source.classList.remove('canvas-source'); if (this.ui) this.ui.style.opacity = '';
       if (!cancel && moved && destination) {
-        moveBlock(this.o.config(), selection.id, destination.id, destination.after);
-        // An item placed freely before rejoins the layout where it is dropped.
-        const b = this.o.config().blocks.find((x) => x.id === selection.id); if (b) { b.dx = undefined; b.dy = undefined; b.float = undefined; }
+        // An item placed freely before rejoins the layout where it is dropped, and its empty space closes.
+        const b = this.o.config().blocks.find((x) => x.id === selection.id), to = destination;
+        if (b) this.dock(b, () => moveBlock(this.o.config(), selection.id, to.id, to.after));
       }
     }, handle);
     if (this.busy) { doc.body.append(ghost, marker); source.classList.add('canvas-source'); if (this.ui) this.ui.style.opacity = '0'; update(); animation = requestAnimationFrame(tick); }
