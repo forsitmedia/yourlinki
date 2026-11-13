@@ -5,7 +5,7 @@ import { imageFrameStyle } from '../../lib/image-frame';
 import { moveSocial, socialKey } from '../../lib/social-order';
 import { sortable } from './reorder';
 import { socialGlyph } from './social-glyph';
-import { state, changed, onChange, uid, placeBlock } from './state';
+import { state, changed, onChange, uid, placeBlock, addAt, type AddAt } from './state';
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
 import { BOLD, LINK } from '../../lib/render';
@@ -371,6 +371,8 @@ export function addTextItem() {
 
 export function addItemMenu() {
   const close = sheet('Add Item', () => [
+    group({ header: 'Where', footer: 'Top: under your photo and name. Here: after the selected item (or the one in view). Bottom: at the end of the page.' },
+      h('div', { class: 'row stacked' }, segmented<AddAt>([{ value: 'top', label: 'Top' }, { value: 'here', label: 'Here' }, { value: 'bottom', label: 'Bottom' }], addAt.get(), (v) => addAt.set(v)))),
     group({ footer: 'Arrange and resize items directly on your page.' },
       navRow({ lead: svg('link'), title: 'Link', subtitle: 'A button or a photo tile', onClick: () => {
         close();

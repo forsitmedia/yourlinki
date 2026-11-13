@@ -128,7 +128,16 @@ export const uid = () => Math.random().toString(36).slice(2, 8);
 /** Where new items go: right after the selected item, or after the one in view in the layout editor (set by the canvas). */
 let anchor: () => string | null | undefined = () => null;
 export const setAnchor = (fn: typeof anchor) => { anchor = fn; };
+/** Where the Add menu puts new items: at the top (under the photo and name), after the selected item, or at the bottom. Remembered on this device. */
+export type AddAt = 'top' | 'here' | 'bottom';
+export const addAt = {
+  get(): AddAt { try { const v = localStorage.getItem('yourlinki-add-at'); return v === 'here' || v === 'bottom' ? v : 'top'; } catch { return 'top'; } },
+  set(v: AddAt) { try { localStorage.setItem('yourlinki-add-at', v); } catch {} },
+};
 export function placeBlock(block: PageBlock) {
-  const at = state.cfg.blocks.findIndex((b) => b.id === anchor());
-  if (at < 0) state.cfg.blocks.push(block); else state.cfg.blocks.splice(at + 1, 0, block);
+  const blocks = state.cfg.blocks, where = addAt.get();
+  let at = -1;
+  if (where === 'here') at = blocks.findIndex((b) => b.id === anchor()) + 1;
+  if (where === 'top') { const head = Math.max(blocks.findIndex((b) => b.type === 'profile'), blocks.findIndex((b) => b.type === 'name')); at = head + 1; }
+  if (at <= 0 && where !== 'top') blocks.push(block); else blocks.splice(Math.max(0, at), 0, block);
 }
