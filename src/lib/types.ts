@@ -117,8 +117,10 @@ export type Look = {
 };
 /** One template's arrangement: item order, each item's placement, its empty spaces, and the page spacing. */
 export type TemplateLayout = {
+  /** 2: also keeps typography (fonts, weight, spacing, tilt), so each design can have its own. */
+  v?: 2;
   order: string[];
-  items: Record<string, Pick<PageBlock, 'design' | 'offset' | 'inset' | 'height' | 'dx' | 'dy' | 'float' | 'textScale'>>;
+  items: Record<string, Pick<PageBlock, 'design' | 'offset' | 'inset' | 'height' | 'dx' | 'dy' | 'float' | 'textScale' | 'font' | 'weight' | 'lineHeight' | 'wordSpacing' | 'pad' | 'rotate'>>;
   spaces: PageBlock[];
   profile: { photoSize?: number; coverHeight?: number };
   spacing?: number;

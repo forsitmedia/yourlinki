@@ -1,4 +1,5 @@
-import type { Config, PageBlock, TemplateLayout } from './types';
+import type { Config, PageBlock, Template, TemplateLayout } from './types';
+import { usesButton } from './button-shape';
 import type { ImageFrame } from './image-frame';
 import type { ButtonShape, ButtonStyle } from './button-shape';
 import { socialKey } from './social-order';
@@ -113,13 +114,13 @@ export function separateGroup(cfg: Config, type: 'social' | 'highlights', separa
 export const isSeparated = (cfg: Config, type: 'social' | 'highlights') => cfg.blocks.some((b) => b.type === type && b.part);
 
 /** What a template's arrangement is made of: where items sit and how big they are, not what they say or how they look. */
-const PLACEMENT = ['design', 'offset', 'inset', 'height', 'dx', 'dy', 'float', 'textScale'] as const;
+const PLACEMENT = ['design', 'offset', 'inset', 'height', 'dx', 'dy', 'float', 'textScale', 'font', 'weight', 'lineHeight', 'wordSpacing', 'pad', 'rotate'] as const;
 
 /** The current arrangement, to keep for the template being left. */
 export function saveLayout(cfg: Config): TemplateLayout {
   const items: TemplateLayout['items'] = {};
   for (const b of cfg.blocks) if (b.type !== 'space') items[b.id] = clone(Object.fromEntries(PLACEMENT.filter((k) => b[k] !== undefined).map((k) => [k, b[k]])));
-  return { order: cfg.blocks.map((b) => b.id), items, spaces: clone(cfg.blocks.filter((b) => b.type === 'space')),
+  return { v: 2, order: cfg.blocks.map((b) => b.id), items, spaces: clone(cfg.blocks.filter((b) => b.type === 'space')),
     profile: { photoSize: cfg.profile.photoSize, coverHeight: cfg.profile.coverHeight }, spacing: cfg.look.spacing, margin: cfg.look.margin };
 }
 
@@ -130,10 +131,38 @@ export function restoreLayout(cfg: Config, saved: TemplateLayout) {
   const blocks: PageBlock[] = [];
   for (const id of saved.order) {
     const b = byId.get(id) ?? spaces.get(id); if (!b) continue;
-    if (b.type !== 'space') { for (const k of PLACEMENT) delete b[k]; Object.assign(b, clone(saved.items[id] ?? {})); }
+    // Layouts kept before typography was kept (no v) only set placement: the item's fonts and spacing stay as they are.
+    if (b.type !== 'space') { for (const k of saved.v === 2 ? PLACEMENT : PLACEMENT.slice(0, 8)) delete b[k]; Object.assign(b, clone(saved.items[id] ?? {})); }
     blocks.push(b); byId.delete(id);
   }
   cfg.blocks = [...blocks, ...byId.values()];
   cfg.profile.photoSize = saved.profile.photoSize; cfg.profile.coverHeight = saved.profile.coverHeight;
   cfg.look.spacing = saved.spacing; cfg.look.margin = saved.margin;
+}
+
+/** A neat arrangement any design can show well (a design used for the first time, or Tidy up). `freed` are items that were
+ * placed freely: notes and badges among them move under the main button instead of landing anywhere.
+ *   1. the header: photo, name, bio — always first and full width
+ *   2. social icons, one centered row
+ *   3. the main button (the first link without a picture)
+ *   4. freed notes and badges (text), centered
+ *   5. everything else in its order (side-by-side pairs stay side by side)
+ * The design decides the typography: per-item fonts, weight, text size, spacing, padding and tilt are cleared
+ * (each design keeps its own, see saveLayout). Pictures, colors, card styles and content stay. */
+export function arrangeLayout(cfg: Config, freed: Set<string>, template: Template = cfg.look.template) {
+  const take = (keep: (b: PageBlock) => boolean) => { const out = cfg.blocks.filter(keep); cfg.blocks = cfg.blocks.filter((b) => !out.includes(b)); return out; };
+  const header = (['profile', 'name', 'bio'] as const).flatMap((t) => take((b) => b.type === t));
+  const social = take((b) => b.type === 'social');
+  const isButton = (b: PageBlock) => { const l = b.type === 'link' && !b.hidden ? cfg.links.find((x) => x.id === b.linkId) : undefined; return !!l && usesButton(l, template); };
+  const main = cfg.blocks.find(isButton);
+  const button = main ? take((b) => b === main) : [];
+  const notes = take((b) => freed.has(b.id) && b.type === 'text'); // small notes and badges; videos, pictures and shapes keep their place
+  cfg.blocks = [...header, ...social, ...button, ...notes, ...cfg.blocks];
+  for (const b of cfg.blocks) {
+    for (const k of PLACEMENT) if (k !== 'design' && !(k === 'rotate' && b.type === 'shape')) delete b[k];
+    if (b.design?.start) { const { start, ...rest } = b.design; b.design = rest; }
+  }
+  for (const b of [...header, ...social, ...button]) { b.design = undefined; b.vertical = undefined; }
+  for (const b of notes) b.design = { span: Math.min(normalizeBlockDesign(b.design)?.span ?? 12, 12), align: 'center' };
+  cfg.profile.photoSize = undefined; cfg.profile.coverHeight = undefined;
 }

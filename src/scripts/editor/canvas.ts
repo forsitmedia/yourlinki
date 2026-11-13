@@ -1,6 +1,6 @@
-import type { Config, PageBlock } from '../../lib/types';
+import type { Config, PageBlock, Template } from '../../lib/types';
 import { safeImg } from '../../lib/types';
-import { LayoutHistory, bounded, normalizeBlockDesign, designStyle, dropTarget, moveBlock, separateName, separateGroup, sizeTier, type BlockRect } from '../../lib/layout';
+import { LayoutHistory, arrangeLayout, bounded, normalizeBlockDesign, designStyle, dropTarget, moveBlock, separateName, separateGroup, sizeTier, type BlockRect } from '../../lib/layout';
 import { TEXT_STYLE_OPTIONS } from './block-editor';
 import { NAME_ALIGN, FONT_IDS, type FontId } from '../../lib/types';
 import { FONTS, FONT_LABELS } from '../../lib/look';
@@ -288,21 +288,10 @@ export class VisualCanvas {
   }
   /** Puts every freely moved item back in the layout at the height it was left, removes empty spaces and Space above. */
   private tidy() {
-    if (!confirm('Tidy up the layout?\n\nFreely moved items go back into the column at the height they are now, empty spaces are removed and "Space above" is reset. Sizes, fonts, colors and rotation stay. You can undo this.')) return;
-    const tops = new Map(this.elements().map((el) => [el.dataset.blockId!, el.getBoundingClientRect().top]));
-    this.action(() => {
-      const cfg = this.o.config();
-      const floating = cfg.blocks.filter((b) => b.float || b.dx || b.dy).sort((a, b) => (tops.get(a.id) ?? 0) - (tops.get(b.id) ?? 0));
-      cfg.blocks = cfg.blocks.filter((b) => b.type !== 'space' && !floating.includes(b));
-      for (const item of floating) {
-        const top = tops.get(item.id) ?? Infinity;
-        const at = cfg.blocks.findIndex((b) => (tops.get(b.id) ?? -Infinity) > top);
-        if (at < 0) cfg.blocks.push(item); else cfg.blocks.splice(at, 0, item);
-      }
-      for (const b of cfg.blocks) { b.float = undefined; b.dx = undefined; b.dy = undefined; b.offset = undefined; }
-    });
-    this.select(null);
+    if (!confirm('Tidy up this design?\n\nYour photo, name and bio go to the top, then social icons and your main button. Freely moved items rejoin the page, empty spaces close, and spacing, fonts and text sizes go back to this design\'s own. Your content, pictures and colors stay. You can undo this.')) return;
+    this.action(() => this.cleanLayout());
   }
+
   /** A free item has its own width: the same share of the page as `span` columns. `keepRight` grows it to the left. */
   private floatSpan(b: PageBlock, el: HTMLElement, span: number, keepRight: boolean) {
     if (!b.float) return;
@@ -315,7 +304,7 @@ export class VisualCanvas {
   }
   /** A clean, organized arrangement for a template used for the first time: free items rejoin the column where they sit,
    * empty spaces close, and spacing, stretched heights and text sizes go back to the template's own. Widths stay. */
-  cleanLayout() {
+  cleanLayout(template?: Template) {
     const tops = new Map(this.elements().map((el) => [el.dataset.blockId!, el.getBoundingClientRect().top]));
     const cfg = this.o.config();
     const floating = cfg.blocks.filter((b) => b.float || b.dx || b.dy).sort((a, b) => (tops.get(a.id) ?? 0) - (tops.get(b.id) ?? 0));
@@ -324,11 +313,7 @@ export class VisualCanvas {
       const top = tops.get(item.id) ?? Infinity, at = cfg.blocks.findIndex((b) => (tops.get(b.id) ?? -Infinity) > top);
       if (at < 0) cfg.blocks.push(item); else cfg.blocks.splice(at, 0, item);
     }
-    for (const b of cfg.blocks) {
-      b.float = undefined; b.dx = undefined; b.dy = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.textScale = undefined;
-      if (b.design?.start) { const { start, ...rest } = b.design; b.design = rest; }
-    }
-    cfg.profile.photoSize = undefined; cfg.profile.coverHeight = undefined;
+    arrangeLayout(cfg, new Set(floating.map((b) => b.id)), template);
     this.select(null);
   }
   /** Gives every free item without an anchor one, as the page looks now (used before the template changes). */
@@ -552,7 +537,7 @@ export class VisualCanvas {
     if (!b || !el) {
       this.o.inspector.replaceChildren(tools, h('p', { class: 'canvas-help' }, 'Drag any item to move it (on a phone, press and hold first). Tap an item, then drag its corner to resize it; double-click the corner to reset.'),
         h('button', { type: 'button', class: 'canvas-tidy', onclick: () => this.tidy() }, '✨ Tidy up layout'),
-        h('p', { class: 'canvas-help' }, 'Puts freely moved items back into a clean column, removes empty spaces and extra spacing.'),
+        h('p', { class: 'canvas-help' }, 'Arranges this design neatly: photo, name and bio at the top, then social icons and your main button. Free items rejoin the page and spacing resets.'),
         this.range('Page spacing', this.o.config().look.spacing ?? 18, 8, 36, 1, (v) => { this.o.config().look.spacing = v; this.doc?.body.style.setProperty('--page-gap', `${v}px`); }, (v) => `${v}px`),
         this.range('Side margins', this.o.config().look.margin ?? (['studio', 'bold'].includes(this.o.config().look.template) ? 24 : 20), 0, 60, 1, (v) => {
           this.o.config().look.margin = v; this.doc?.body.style.setProperty('--page-margin', `${v}px`); this.doc?.body.setAttribute('data-margin', '');

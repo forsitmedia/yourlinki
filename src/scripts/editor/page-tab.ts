@@ -100,11 +100,15 @@ export function pageTab(): HTMLElement {
           // Each template keeps its own arrangement: keep this one, then bring back the new template's (or start it clean).
           const first = !cfg.layouts;
           const layouts = cfg.layouts ??= {};
+          // Arrangements kept before typography was kept too (no v) were made automatically, except Photo's, where pages
+          // were built: drop the others (and don't keep the one on screen), so those designs get arranged neatly again.
+          const legacy = Object.values(layouts).some((l) => l && !l.v);
+          if (legacy) for (const k of Object.keys(layouts) as (keyof typeof layouts)[]) if (k !== 'photo') delete layouts[k];
           const current = saveLayout(cfg);
-          layouts[cfg.look.template] = current;
+          if (!legacy || cfg.look.template === 'photo') layouts[cfg.look.template] = current;
           if (first && cfg.look.template !== 'photo') layouts.photo ??= current; // pages made before this were arranged in Photo
           const saved = layouts[t.id];
-          if (!saved) dispatchEvent(new Event('yourlinki-clean-layout')); // measured while the old template is still shown
+          if (!saved) dispatchEvent(new CustomEvent('yourlinki-clean-layout', { detail: t.id })); // measured while the old template is still shown
           const { music, disco, tools } = cfg.look;
           cfg.look = { ...t.look, ...(music ? { music } : {}), ...(disco ? { disco } : {}), ...(tools ? { tools } : {}) };
           if (saved) restoreLayout(cfg, saved);

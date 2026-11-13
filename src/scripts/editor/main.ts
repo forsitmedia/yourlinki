@@ -62,7 +62,7 @@ document.addEventListener('keydown', (e) => {
   if (typing || !(e.metaKey || e.ctrlKey) || (key !== 'z' && key !== 'y')) return;
   e.preventDefault(); key === 'y' || e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
 });
-addEventListener('yourlinki-clean-layout', () => canvas.cleanLayout());
+addEventListener('yourlinki-clean-layout', (e) => canvas.cleanLayout((e as CustomEvent).detail));
 addEventListener('yourlinki-open-music', () => musicSheet());
 const surface = h('div', { class: 'preview-surface' }, frame);
 const deviceArea = h('div', { class: 'device-area' }, surface);
