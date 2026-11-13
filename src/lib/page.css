@@ -583,3 +583,5 @@ html.canvas-editing .space { pointer-events: auto; }
 
 /* Line spacing chosen per item. */
 .page .stack [data-lh], .page .stack [data-lh] * { line-height: var(--lh) !important; }
+/* Word spacing chosen per item (in em, so it follows the text size). */
+.page .stack [data-ws], .page .stack [data-ws] * { word-spacing: var(--ws) !important; }

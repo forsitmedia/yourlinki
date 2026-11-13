@@ -456,7 +456,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined; b.lineHeight = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined; b.lineHeight = undefined; b.wordSpacing = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -493,6 +493,11 @@ export class VisualCanvas {
       b.lineHeight = v / 100; el.style.setProperty('--lh', String(v / 100)); el.setAttribute('data-lh', '');
       (this.doc!.defaultView as any).yourlinkiFit?.(); (this.doc!.defaultView as any).yourlinkiFloat?.();
     }, (v) => `${v}%`) : null;
+    // Word spacing: extra room between words, in % of the text size (0 = as designed).
+    const wordSpacing = font ? this.range('Word spacing', Math.round((b.wordSpacing ?? 0) * 100), -30, 150, 5, (v) => {
+      b.wordSpacing = v ? v / 100 : undefined; el.style.setProperty('--ws', `${v / 100}em`); el.toggleAttribute('data-ws', !!v);
+      (this.doc!.defaultView as any).yourlinkiFit?.(); (this.doc!.defaultView as any).yourlinkiFloat?.();
+    }, (v) => `${v > 0 ? '+' : ''}${v}%`) : null;
     const offset = this.range('Space above', b.offset ?? 0, -80, 120, 1, (v) => {
       b.offset = v || undefined; el.style.setProperty('--offset', `${v}px`); el.toggleAttribute('data-offset', !!v);
     }, (v) => `${v > 0 ? '+' : ''}${v}px`);
@@ -529,7 +534,7 @@ export class VisualCanvas {
     const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
       b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);
     }, (v) => `${v}°`);
-    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(lineSpacing ? [lineSpacing] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]), ...(rotation ? [rotation] : []));
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(lineSpacing ? [lineSpacing] : []), ...(wordSpacing ? [wordSpacing] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]), ...(rotation ? [rotation] : []));
     this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [this.iconColors(b)] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;

@@ -132,6 +132,8 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (pad !== undefined) { styles.push(`--pad:${Math.round(pad)}px`); extra += ' data-pad'; }
   const lh = bounded(block.lineHeight, .6, 2.5);
   if (lh) { styles.push(`--lh:${Math.round(lh * 100) / 100}`); extra += ' data-lh'; }
+  const ws = bounded(block.wordSpacing, -.3, 1.5);
+  if (ws) { styles.push(`--ws:${Math.round(ws * 100) / 100}em`); extra += ' data-ws'; }
   const height = bounded(block.height, 24, 900);
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
