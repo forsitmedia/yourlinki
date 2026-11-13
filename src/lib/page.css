@@ -9,8 +9,10 @@ body {
 }
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
 
-/* The photo, heavily blurred, becomes the page background. */
-.backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; background: var(--bg); }
+/* The photo, heavily blurred, becomes the page background. It spans the whole page (not just the screen),
+   so it looks the same on every phone and at every scroll position: the photo's top colors run under the content. */
+body { position: relative; }
+.backdrop { position: absolute; inset: 0; min-height: 100vh; z-index: -1; overflow: hidden; background: var(--bg); }
 .backdrop img { width: 100%; height: 100%; object-fit: cover; filter: blur(60px) saturate(1.5); transform: scale(1.4); }
 .backdrop::after { content: ''; position: absolute; inset: 0; background: var(--overlay); }
 .backdrop:not(:has(img))::after { display: none; }
