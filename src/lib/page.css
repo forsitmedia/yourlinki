@@ -580,3 +580,6 @@ html.canvas-editing .space { pointer-events: auto; }
 
 /* Button padding chosen per button: the button hugs its text (0) or gets roomier. */
 .page .stack :is(.row-link, .primary)[data-pad] { min-height: 0 !important; padding: var(--pad) !important; padding-inline: calc(var(--pad) * 1.3 + 6px) !important; }
+
+/* Line spacing chosen per item. */
+.page .stack [data-lh], .page .stack [data-lh] * { line-height: var(--lh) !important; }

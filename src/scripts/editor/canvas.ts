@@ -393,7 +393,7 @@ export class VisualCanvas {
       h('button', { type: 'button', 'data-undo': '', disabled: !this.o.canUndo(), 'aria-label': 'Undo', title: 'Undo (Ctrl+Z)', onclick: () => this.undo() }, '↶'),
       h('button', { type: 'button', 'data-redo': '', disabled: !this.o.canRedo(), 'aria-label': 'Redo', title: 'Redo (Ctrl+Shift+Z)', onclick: () => this.redo() }, '↷'),
       h('button', { type: 'button', class: 'canvas-free' + (this.freeMode ? ' on' : ''), 'aria-pressed': String(this.freeMode), title: 'Free move: drag items anywhere, with guides. Off: dragging changes the order. Hold Shift for one free drag.',
-        onclick: () => { this.freeMode = !this.freeMode; try { localStorage.setItem('yourlinki-free-move', this.freeMode ? '1' : '0'); } catch {} this.inspector(); } }, this.freeMode ? '✥ Free move' : '✥ Free'),
+        onclick: () => { this.freeMode = !this.freeMode; try { localStorage.setItem('yourlinki-free-move', this.freeMode ? '1' : '0'); } catch {} this.inspector(); } }, '✥ Free'), // purple when on
       h('button', { type: 'button', class: 'canvas-add', onclick: () => { this.pendingNew = new Set(this.o.config().blocks.map((b) => b.id)); this.o.add(); } }, '+ Add'));
     const b = this.block(), el = this.element();
     if (!b || !el) {
@@ -456,7 +456,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined; b.lineHeight = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -484,6 +484,13 @@ export class VisualCanvas {
       if (b.height) { b.height = Math.round(Math.max(24, Math.min(900, b.height * (v / 100) / (b.textScale ?? 1)))); el.style.setProperty('--h', `${b.height}px`); }
       b.textScale = v === 100 ? undefined : v / 100;
       el.style.setProperty('--text-scale', String(v / 100)); el.toggleAttribute('data-text-scale', v !== 100);
+      (this.doc!.defaultView as any).yourlinkiFit?.(); (this.doc!.defaultView as any).yourlinkiFloat?.();
+    }, (v) => `${v}%`) : null;
+    // Line spacing: how close the lines of a text sit (shown in % of the text size, like most design apps).
+    const textEl = el.querySelector<HTMLElement>('h1, h2, p, figcaption, span') ?? el;
+    const lineDefault = () => { const cs = getComputedStyle(textEl); const lh = parseFloat(cs.lineHeight), fs = parseFloat(cs.fontSize); return lh && fs ? Math.round(lh / fs * 20) * 5 : 120; };
+    const lineSpacing = font ? this.range('Line spacing', b.lineHeight ? Math.round(b.lineHeight * 100) : lineDefault(), 60, 250, 5, (v) => {
+      b.lineHeight = v / 100; el.style.setProperty('--lh', String(v / 100)); el.setAttribute('data-lh', '');
       (this.doc!.defaultView as any).yourlinkiFit?.(); (this.doc!.defaultView as any).yourlinkiFloat?.();
     }, (v) => `${v}%`) : null;
     const offset = this.range('Space above', b.offset ?? 0, -80, 120, 1, (v) => {
@@ -522,7 +529,7 @@ export class VisualCanvas {
     const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
       b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);
     }, (v) => `${v}°`);
-    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]), ...(rotation ? [rotation] : []));
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(lineSpacing ? [lineSpacing] : []), ...(this.selection?.part === 'name' ? [] : [offset, inset]), ...(rotation ? [rotation] : []));
     this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [this.iconColors(b)] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;

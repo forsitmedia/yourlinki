@@ -130,6 +130,8 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (inset) { styles.push(`--inset:${Math.round(inset)}px`); extra += ' data-inset'; }
   const pad = bounded(block.pad, 0, 40);
   if (pad !== undefined) { styles.push(`--pad:${Math.round(pad)}px`); extra += ' data-pad'; }
+  const lh = bounded(block.lineHeight, .6, 2.5);
+  if (lh) { styles.push(`--lh:${Math.round(lh * 100) / 100}`); extra += ' data-lh'; }
   const height = bounded(block.height, 24, 900);
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
