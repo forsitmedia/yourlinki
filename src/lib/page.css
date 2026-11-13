@@ -658,3 +658,7 @@ html.disco :is(.hero img, .avatar img, .profile-cover img), html.disco .backdrop
 /* Text sits on the top layer: above pictures, cards, shapes and other free items (free ones are at 3). */
 .stack .text-block { position: relative; z-index: 6; }
 .stack > .text-block[data-float] { z-index: 7; }
+
+/* Text color chosen per item. */
+.page .stack [data-tc], .page .stack [data-tc] :is(h1, h2, h3, p, span, figcaption, li, div, a, strong, em, u, s, .handle) { color: var(--tc) !important; }
+.page .stack [data-tc] li::marker { color: var(--tc); }

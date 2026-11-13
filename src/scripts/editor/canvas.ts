@@ -42,6 +42,8 @@ export class VisualCanvas {
   private freeDragging = false;
   private toolTap = 0;
   private clip = '';
+  private typing: HTMLElement | null = null;
+  private typedBefore = false;
   private pointer: { x: number; y: number } | null = null;
   /** Free move: dragging an item places it anywhere (other items stay put) instead of changing the order. Shift does the same for one drag. */
   private freeMode = (() => { try { return localStorage.getItem('yourlinki-free-move') === '1'; } catch { return false; } })();
@@ -87,6 +89,7 @@ export class VisualCanvas {
     const press = (e: PointerEvent) => {
       if (!this.enabled || this.busy || (e.pointerType === 'mouse' && e.button !== 0)) return;
       const target = e.target as HTMLElement;
+      if (this.typing && this.typing.contains(target)) return; // placing the cursor or selecting words
       if (!target?.closest || target.closest('.canvas-ui, .social:not([data-part]) [data-social-id]')) return;
       const block = target.closest<HTMLElement>('[data-block-id]');
       if (!block) return;
@@ -101,6 +104,7 @@ export class VisualCanvas {
       if (!this.enabled) return;
       const target = e.target as HTMLElement;
       if (!target?.closest || target.closest('.canvas-ui')) return;
+      if (this.typing && this.typing.contains(target)) return;
       // Music and disco buttons: a tap plays them as on the page, a double-click opens their settings instead.
       // The tap waits a moment to see whether a second one follows; it then goes through as a scripted (untrusted) click.
       const tool = target.closest<HTMLButtonElement>('.page-tools button');
@@ -119,7 +123,7 @@ export class VisualCanvas {
       const socialId = block.hasAttribute('data-part') ? undefined : target.closest<HTMLElement>('[data-social-id]')?.dataset.socialId;
       const id = block.dataset.blockId!, current = this.selection;
       // A second tap on what is already selected (or a double-click) opens its editor.
-      if (current && current.id === id && current.part === part && current.socialId === socialId) { this.editSelection(); return; }
+      if (current && current.id === id && current.part === part && current.socialId === socialId) { this.editSelection(e); return; }
       this.select({ id, ...(part ? { part } : {}), ...(socialId ? { socialId } : {}) });
     };
     const key = (e: KeyboardEvent) => {
@@ -169,9 +173,40 @@ export class VisualCanvas {
     return this.selection?.part ? el?.querySelector<HTMLElement>(`[data-profile-part="${this.selection.part}"]`) ?? el : el;
   }
   private socialElements() { return [...(this.element()?.querySelectorAll<HTMLElement>('[data-social-id]') ?? [])]; }
-  private editSelection() {
+  private editSelection(e?: MouseEvent) {
     if (this.selection?.socialId) this.o.editSocial(this.selection.socialId);
+    else if (this.block()?.type === 'text') this.typeInPlace(e);
     else if (this.selection) this.o.edit(this.selection.id);
+  }
+  /** Text items are typed right on the page: the cursor goes where you clicked; clicking outside or Escape finishes.
+   * What is typed goes back to the text's marks (bold, italic, underline, crossed out, links, lists), so formatting stays. */
+  private typeInPlace(e?: MouseEvent) {
+    const b = this.block(), el = this.element(); if (!b || !el || this.typing) return;
+    const doc = this.doc!, target = el.querySelector<HTMLElement>('.fit') ?? el, before = b.title ?? '', id = b.id;
+    let done = false;
+    this.typing = target;
+    target.contentEditable = 'true'; target.spellcheck = true;
+    el.classList.add('canvas-typing'); if (this.ui) this.ui.style.visibility = 'hidden';
+    target.focus({ preventScroll: true });
+    const sel = doc.getSelection()!, at = e && (doc as any).caretRangeFromPoint?.(e.clientX, e.clientY);
+    if (at) { sel.removeAllRanges(); sel.addRange(at); } else { const r = doc.createRange(); r.selectNodeContents(target); r.collapse(false); sel.removeAllRanges(); sel.addRange(r); }
+    const keys = (k: KeyboardEvent) => {
+      if (k.key === 'Escape') { k.preventDefault(); finish(); }
+      if (k.key === 'Enter') { k.preventDefault(); doc.execCommand('insertText', false, '\n'); } // a new line inside the text, not a new block
+      k.stopPropagation(); // typing never deletes, copies or undoes items
+    };
+    const finish = () => {
+      if (done) return; done = true;
+      target.removeEventListener('keydown', keys); target.removeEventListener('blur', finish);
+      target.contentEditable = 'false'; el.classList.remove('canvas-typing'); this.typing = null;
+      if (this.ui) this.ui.style.visibility = '';
+      const text = markdown(target).replace(/\n+$/, '');
+      // The page's data may have been refreshed meanwhile: write to the item as it is now.
+      if (text.trim() && text !== before) this.action(() => { const item = this.o.config().blocks.find((x) => x.id === id); if (item) item.title = text; });
+      else this.o.commit(true); // nothing typed (or all deleted): the text stays as it was
+    };
+    target.addEventListener('keydown', keys); target.addEventListener('blur', finish);
+    if (!this.typedBefore) { this.typedBefore = true; toast('Type on the page. Click outside or press Esc when done.'); }
   }
   /** Delete key: removes the selected item. The profile, bio, highlights and social row are hidden instead (Show on page brings them back). */
   /** Copy (Cmd/Ctrl+C): keeps the selected item, as it is now, to paste as many times as wanted. */
@@ -637,7 +672,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined; b.lineHeight = undefined; b.wordSpacing = undefined; b.weight = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined; b.lineHeight = undefined; b.wordSpacing = undefined; b.weight = undefined; b.textColor = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -744,7 +779,10 @@ export class VisualCanvas {
         style: o.value ? `font-family:${FONTS[o.value]}` : undefined, title: o.value ? `${o.label} font for this item` : 'Use the page font',
         onclick: () => this.action(() => { if (o.value) b.font = o.value; else delete b.font; }),
       }, h('b', {}, 'Aa'), h('span', {}, o.label)))),
-      this.weightPicker(b));
+      this.weightPicker(b),
+      h('div', { class: 'canvas-weight' }, h('p', {}, 'Color'),
+        swatches(['', '#ffffff', '#111111', '#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#0a84ff', '#bf5af2', '#ff2d92'], b.textColor ?? '',
+          (v) => this.action(() => { b.textColor = v || undefined; }), false)));
   }
   /** Text weight for this item: lighter or heavier than the template draws it (bold words inside stay bolder). */
   private weightPicker(b: PageBlock) {
@@ -993,4 +1031,24 @@ export class VisualCanvas {
       if (!cancel && moved && destination) moveSocial(this.o.config().social, id, destination.id, destination.after);
     });
   }
+}
+
+/** The marks a text item is stored with, from what was typed on the page (see rich() and richBlock() in lib/render). */
+function markdown(node: Node): string {
+  let out = '';
+  node.childNodes.forEach((n) => {
+    if (n.nodeType === Node.TEXT_NODE) { out += n.textContent ?? ''; return; }
+    if (n.nodeType !== Node.ELEMENT_NODE) return; // (not instanceof: the page's elements belong to the preview frame)
+    const el = n as HTMLElement, tag = el.tagName.toLowerCase(), inner = markdown(el);
+    if (tag === 'br') out += '\n';
+    else if (tag === 'strong' || tag === 'b') out += inner.trim() ? `**${inner}**` : inner;
+    else if (tag === 'em' || tag === 'i') out += inner.trim() ? `*${inner}*` : inner;
+    else if (tag === 'u') out += inner.trim() ? `__${inner}__` : inner;
+    else if (tag === 's' || tag === 'del' || tag === 'strike') out += inner.trim() ? `~~${inner}~~` : inner;
+    else if (tag === 'a') out += el.getAttribute('href') ? `[${inner}](${el.getAttribute('href')})` : inner;
+    else if (tag === 'ul' || tag === 'ol') { if (out && !out.endsWith('\n')) out += '\n'; [...el.children].forEach((li, i) => { out += `${tag === 'ol' ? `${i + 1}.` : '-'} ${markdown(li).replace(/\n+$/, '')}\n`; }); }
+    else if (tag === 'div' || tag === 'p' || el.classList.contains('text-para')) { if (out && !out.endsWith('\n')) out += '\n'; out += inner; if (!out.endsWith('\n')) out += '\n'; }
+    else out += inner;
+  });
+  return out;
 }

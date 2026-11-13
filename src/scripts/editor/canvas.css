@@ -45,3 +45,7 @@ html.canvas-editing .space { border-radius: 12px; outline: 1px dashed #8b3dff40;
 html.canvas-editing .space::after { content: 'Empty space'; position: absolute; inset: 0; display: grid; place-items: center; font: 600 11px system-ui; color: #8b3dffb0; opacity: 0; transition: opacity .15s; }
 html.canvas-editing .space:is(:hover, .canvas-selected) { outline: 1.5px dashed #8b3dff99; background: repeating-linear-gradient(135deg, #8b3dff12 0 8px, transparent 8px 16px); }
 html.canvas-editing .space:is(:hover, .canvas-selected)::after { opacity: 1; }
+/* Typing on the page: the text can be selected and edited, with a clear outline. */
+html.canvas-editing .canvas-typing { cursor: text; outline: 2px solid #007aff !important; outline-offset: 4px; }
+html.canvas-editing .canvas-typing, html.canvas-editing .canvas-typing * { user-select: text; -webkit-user-select: text; cursor: text; }
+html.canvas-editing .canvas-typing [contenteditable="true"] { outline: none; caret-color: #007aff; }

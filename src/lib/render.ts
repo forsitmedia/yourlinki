@@ -144,6 +144,7 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   const ws = bounded(block.wordSpacing, -.3, 1.5);
   if (ws) { styles.push(`--ws:${Math.round(ws * 100) / 100}em`); extra += ' data-ws'; }
   if (block.weight && [300, 400, 500, 600, 700].includes(block.weight)) { styles.push(`--wt:${block.weight}`); extra += ' data-weight'; }
+  if (block.textColor && /^#[0-9a-f]{6}$/i.test(block.textColor)) { styles.push(`--tc:${block.textColor}`); extra += ' data-tc'; }
   const height = bounded(block.height, 24, 900);
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
