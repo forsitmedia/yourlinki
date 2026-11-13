@@ -150,6 +150,7 @@ export class VisualCanvas {
       if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase())) { e.preventDefault(); e.key.toLowerCase() === 'y' || e.shiftKey ? this.redo() : this.undo(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { if (this.paste()) e.preventDefault(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); this.group(!e.shiftKey); return; }
+      if ((e.ctrlKey || e.metaKey) && ['[', ']', '{', '}'].includes(e.key)) { e.preventDefault(); const up = e.key === ']' || e.key === '}'; this.layer(e.shiftKey ? (up ? 'front' : 'back') : up ? 'forward' : 'backward'); return; }
       if (!this.enabled || !this.selection) return;
       if (e.key === 'Escape') { e.preventDefault(); if (this.busy) this.stopGesture?.(); else this.select(null); }
       if (this.busy) return;
@@ -447,6 +448,31 @@ export class VisualCanvas {
       cfg.blocks.splice(at < 0 ? cfg.blocks.length : at + (to.after ? 1 : 0), 0, ...members);
     }, handle);
     if (this.busy) { doc.body.append(ghost, marker); els.forEach((el) => el.classList.add('canvas-source')); update(); }
+  }
+  /** Layers: forward or backward one step past the item it overlaps most, or all the way to the front or back. */
+  layer(to: 'front' | 'forward' | 'backward' | 'back') {
+    const cfg = this.o.config(), ids = this.multi.length > 1 ? this.multi : this.selection && !this.selection.part && !this.selection.socialId ? this.groupOf(this.selection.id) : [];
+    if (!ids.length || !this.doc) return false;
+    const z = (el: HTMLElement) => Number(this.doc!.defaultView!.getComputedStyle(el).zIndex) || 0;
+    const els = this.elements(), mine = els.filter((el) => ids.includes(el.dataset.blockId!)), others = els.filter((el) => !ids.includes(el.dataset.blockId!));
+    const top = Math.max(0, ...others.map(z)), bottom = Math.min(0, ...others.map(z)), now = Math.max(...mine.map(z));
+    const next = to === 'front' ? top + 1 : to === 'back' ? bottom - 1 : to === 'forward' ? Math.min(50, now + 1) : Math.max(-50, now - 1);
+    this.action(() => { for (const b of cfg.blocks) if (ids.includes(b.id)) b.z = next; });
+    if (this.multi.length > 1) this.selectMany(this.multi, this.selection?.id);
+    toast({ front: 'Brought to front', back: 'Sent to back', forward: 'Brought forward', backward: 'Sent backward' }[to]);
+    return true;
+  }
+  private layerBar() {
+    const icon = (stack: string) => `<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">${stack}</svg>`;
+    const back = '<rect x="5" y="5" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/>', front = '<rect x="3" y="3" width="9" height="9" rx="2" fill="currentColor"/>';
+    const button = (label: string, key: string, svg: string, to: 'front' | 'forward' | 'backward' | 'back') => {
+      const el = h('button', { type: 'button', class: 'align-btn', title: `${label} (${key})`, 'aria-label': label, onclick: () => this.layer(to) }); el.innerHTML = svg; return el;
+    };
+    return h('div', { class: 'canvas-weight' }, h('p', {}, 'Layer'), h('div', { class: 'align-bar' },
+      button('To back', '⇧⌘[', icon(`<rect x="3" y="3" width="9" height="9" rx="2" fill="currentColor" opacity=".35"/>${back.replace('fill="none"', 'fill="var(--card)"')}`), 'back'),
+      button('Backward', '⌘[', icon(`<rect x="3" y="3" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/>${back}`), 'backward'),
+      button('Forward', '⌘]', icon(`${back}${front.replace('fill="currentColor"', 'fill="none" stroke="currentColor" stroke-width="1.3"')}`), 'forward'),
+      button('To front', '⇧⌘]', icon(`${back}${front}`), 'front')));
   }
   /** Group (Cmd+G) the selected items, or ungroup (Cmd+Shift+G) them. */
   group(on: boolean) {
@@ -791,7 +817,8 @@ export class VisualCanvas {
         h('p', { class: 'canvas-help' }, `${grouped ? 'Group' : 'Selection'} of ${this.multi.length} items. Drag any of them to move them together. Shift+click adds or removes an item; ⌘C / ⌘V copies them all.`),
         h('div', { class: 'canvas-actions' },
           h('button', { type: 'button', class: 'canvas-group-btn', onclick: () => this.group(!grouped) }, grouped ? 'Ungroup' : 'Group'),
-          h('button', { type: 'button', class: 'canvas-delete', 'aria-label': 'Delete selected items', title: 'Delete (Delete key)', onclick: () => this.deleteSelection() }, '🗑')));
+          h('button', { type: 'button', class: 'canvas-delete', 'aria-label': 'Delete selected items', title: 'Delete (Delete key)', onclick: () => this.deleteSelection() }, '🗑')),
+        this.layerBar());
       return;
     }
     const b = this.block(), el = this.element();
@@ -937,7 +964,7 @@ export class VisualCanvas {
           if (b.vertical && this.span() > 4) this.applySpan(4, false); // a column only needs a narrow strip beside other items
           if (!b.vertical && this.span() <= 4) this.applySpan(12, false);
         })))] : []), ...(nameControls ? [nameControls] : []), ...(shape ? [shape] : []), ...(tileStyle ? [tileStyle] : []), ...(font ? [font] : []),
-      ...(this.selection?.part === 'name' ? [] : [sizeControl, width, details]));
+      ...(this.selection?.part === 'name' ? [] : [sizeControl, width, this.layerBar(), details]));
     if (focus) [...this.o.inspector.querySelectorAll<HTMLInputElement>('input[data-control]')].find((input) => input.dataset.control === focus)?.focus({ preventScroll: true });
   }
   /** Social icons: their color (page, brand or any color) and the circle behind them. */

@@ -114,7 +114,7 @@ export function separateGroup(cfg: Config, type: 'social' | 'highlights', separa
 export const isSeparated = (cfg: Config, type: 'social' | 'highlights') => cfg.blocks.some((b) => b.type === type && b.part);
 
 /** What a template's arrangement is made of: where items sit and how big they are, not what they say or how they look. */
-const PLACEMENT = ['design', 'offset', 'inset', 'height', 'dx', 'dy', 'float', 'textScale', 'font', 'weight', 'lineHeight', 'wordSpacing', 'pad', 'rotate', 'textColor'] as const;
+const PLACEMENT = ['design', 'offset', 'inset', 'height', 'dx', 'dy', 'float', 'textScale', 'font', 'weight', 'lineHeight', 'wordSpacing', 'pad', 'rotate', 'textColor', 'z'] as const;
 
 /** The current arrangement, to keep for the template being left. */
 export function saveLayout(cfg: Config): TemplateLayout {

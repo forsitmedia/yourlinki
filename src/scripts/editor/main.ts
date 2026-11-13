@@ -64,6 +64,7 @@ document.addEventListener('keydown', (e) => {
     if (key === 'c' && canvas.copySelection()) { e.preventDefault(); return; }
     if (key === 'v' && canvas.paste()) { e.preventDefault(); refreshHistory(); return; }
     if (key === 'g') { e.preventDefault(); canvas.group(!e.shiftKey); refreshHistory(); return; }
+    if (['[', ']', '{', '}'].includes(e.key)) { const up = e.key === ']' || e.key === '}'; if (canvas.layer(e.shiftKey ? (up ? 'front' : 'back') : up ? 'forward' : 'backward')) { e.preventDefault(); refreshHistory(); } return; }
   }
   if (typing || !(e.metaKey || e.ctrlKey) || (key !== 'z' && key !== 'y')) return;
   e.preventDefault(); key === 'y' || e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();

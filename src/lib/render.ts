@@ -145,6 +145,7 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   if (ws) { styles.push(`--ws:${Math.round(ws * 100) / 100}em`); extra += ' data-ws'; }
   if (block.weight && [300, 400, 500, 600, 700].includes(block.weight)) { styles.push(`--wt:${block.weight}`); extra += ' data-weight'; }
   if (block.textColor && /^#[0-9a-f]{6}$/i.test(block.textColor)) { styles.push(`--tc:${block.textColor}`); extra += ' data-tc'; }
+  if (typeof block.z === 'number') { styles.push(`--z:${Math.round(block.z)}`); extra += ' data-z'; }
   const height = bounded(block.height, 24, 900);
   if (height) { styles.push(`--h:${Math.round(height)}px`); extra += ' data-height'; }
   const dx = bounded(block.dx, -600, 600), dy = bounded(block.dy, -1200, 1200);
@@ -348,10 +349,11 @@ window.yourlinkiFloat = () => {
     const s = getComputedStyle(el), num = (n) => parseFloat(s.getPropertyValue(n)) || 0;
     if (!a || !a.getClientRects().length) { el.style.left = el.style.top = el.style.width = ''; return; }
     const r = a.getBoundingClientRect(), fx = num('--fx'), fw = num('--fw');
-    // Never much narrower than when it was placed; a wider item keeps its center on the same spot, inside the page.
+    // Never much narrower than when it was placed; a wider item keeps its center on the same spot.
+    // It may hang over the page's edge on purpose (the screen cuts it off there).
     const width = Math.max(fw / 100 * r.width, (Number(el.dataset.p) || 0) * .7);
     const center = r.left - box.left + (fx + fw / 2) / 100 * r.width;
-    el.style.left = Math.max(0, Math.min(box.width - width, center - width / 2)) + 'px';
+    el.style.left = (center - width / 2) + 'px';
     el.style.top = (r.top - box.top + (el.hasAttribute('data-sticker') ? num('--fy') / 100 * r.height : num('--fy'))) + 'px';
     el.style.width = width + 'px';
   });
