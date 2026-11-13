@@ -274,13 +274,21 @@ export function credentialsSheet(block: PageBlock, isNew = false) {
   block.entries ??= [];
   const entries = block.entries;
   const body = h('div');
-  const entryGroup = (e: Credential, i: number) => group({ header: `${CREDENTIAL_KINDS.find((k) => k.value === e.kind)?.label ?? 'Entry'} ${i + 1}` },
+  const entryGroup = (e: Credential, i: number) => {
+  // Always built, shown as soon as there is a logo (also while pasting its address, without redrawing the field being typed in).
+  const adjust = navRow({
+    lead: svg('photo', 18), title: 'Adjust Logo', subtitle: e.logoFrame ? 'Zoom and position set' : 'Zoom in, move it, or fill the square',
+    onClick: () => adjustImage({ src: safeImg(e.logo), title: 'Adjust Logo', aspect: 1, frame: e.logoFrame ?? { x: 50, y: 50, zoom: 1, fit: 'contain' },
+      onChange: (frame) => { e.logoFrame = frame; changed(); }, onFinish: () => { changed(true); draw(); } }),
+  }) as HTMLElement;
+  adjust.hidden = !safeImg(e.logo);
+  return group({ header: `${CREDENTIAL_KINDS.find((k) => k.value === e.kind)?.label ?? 'Entry'} ${i + 1}` },
     h('div', { class: 'row stacked' }, segmented(CREDENTIAL_KINDS.map((k) => ({ value: k.value, label: k.label })), e.kind, (v) => { e.kind = v; changed(); draw(); })),
     inputRow('Title', e.title, (v) => { e.title = v; changed(); }, { max: 120, placeholder: e.kind === 'degree' ? 'MSc Marketing' : e.kind === 'certificate' ? 'Google Ads Certified' : e.kind === 'award' ? 'Best Campaign 2025' : 'Creative Director' }),
     inputRow(e.kind === 'work' ? 'Company' : e.kind === 'degree' ? 'School' : 'From', e.org, (v) => { e.org = v; changed(); }, { max: 120, placeholder: e.kind === 'degree' ? 'University of Lisbon' : e.kind === 'work' ? 'Forsitmedia' : 'Google' }),
     inputRow('Year', e.year, (v) => { e.year = v; changed(); }, { max: 30, placeholder: e.kind === 'work' ? '2022 – now' : '2024' }),
     inputRow('Link', e.url ?? '', (v) => { e.url = withScheme(v) || undefined; changed(); }, { type: 'url', placeholder: 'Optional: verify or read more' }),
-    inputRow('Logo URL', e.logo?.startsWith('data:') ? '' : e.logo ?? '', (v) => { e.logo = withScheme(v) || null; changed(); }, { type: 'url', placeholder: 'Paste an image address' }),
+    inputRow('Logo URL', e.logo?.startsWith('data:') ? '' : e.logo ?? '', (v) => { e.logo = withScheme(v) || null; e.logoFrame = undefined; adjust.hidden = !safeImg(e.logo); changed(); }, { type: 'url', placeholder: 'Paste an image address' }),
     navRow({
       lead: svg('globe', 18), title: 'Search for the logo', subtitle: 'Opens image search: right-click a logo, Copy Image Address, paste it above',
       onClick: () => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${e.org || e.title} logo`)}`, '_blank', 'noopener'),
@@ -290,15 +298,12 @@ export function credentialsSheet(block: PageBlock, isNew = false) {
       title: e.logo ? 'Upload a Different Logo' : 'Upload Logo', subtitle: 'Or choose a file from your computer',
       onClick: async () => { try { const url = await pickImage(240); if (url) { e.logo = url; e.logoFrame = undefined; changed(true); draw(); } } catch (err: any) { toast(err.message); } },
     }),
-    safeImg(e.logo) && navRow({
-      lead: svg('photo', 18), title: 'Adjust Logo', subtitle: e.logoFrame ? 'Zoom and position set' : 'Zoom in, move it, or fill the square',
-      onClick: () => adjustImage({ src: safeImg(e.logo), title: 'Adjust Logo', aspect: 1, frame: e.logoFrame ?? { x: 50, y: 50, zoom: 1, fit: 'contain' },
-        onChange: (frame) => { e.logoFrame = frame; changed(); }, onFinish: () => { changed(true); draw(); } }),
-    }),
+    adjust,
     h('div', { class: 'row cred-entry-actions' },
       h('button', { type: 'button', class: 'btn-text', disabled: i === 0, onclick: () => { entries.splice(i - 1, 0, entries.splice(i, 1)[0]); changed(true); draw(); } }, 'Move up'),
       e.logo && h('button', { type: 'button', class: 'btn-text', onclick: () => { e.logo = null; e.logoFrame = undefined; changed(true); draw(); } }, 'Remove logo'),
       h('button', { type: 'button', class: 'btn-text red', onclick: () => { entries.splice(i, 1); changed(true); draw(); } }, 'Remove')));
+  };
   const draw = () => body.replaceChildren(
     group({ footer: 'A short heading, like Education, Certifications or Awards. Leave empty for none.' },
       inputRow('Heading', block.title ?? '', (v) => { block.title = v; changed(); }, { max: 60, placeholder: 'Education' })),
