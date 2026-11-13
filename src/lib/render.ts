@@ -132,7 +132,7 @@ function blockAttributes(block: PageBlock, cfg?: Config): string {
   const styles = [designStyle(design)];
   let extra = '';
   if (block.font && FONTS[block.font]) { styles.push(`--block-font:${FONTS[block.font]}`); extra += ' data-font'; }
-  const scale = bounded(block.textScale, .6, 2), offset = bounded(block.offset, -80, 120);
+  const scale = bounded(block.textScale, .5, 8), offset = bounded(block.offset, -80, 120);
   if (scale && scale !== 1) { styles.push(`--text-scale:${scale}`); extra += ' data-text-scale'; }
   if (offset) { styles.push(`--offset:${Math.round(offset)}px`); extra += ' data-offset'; }
   const inset = bounded(block.inset, 0, 80);

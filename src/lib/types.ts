@@ -64,7 +64,7 @@ export type PageBlock = {
   videoAspect?: 'landscape' | 'wide' | 'square';
   /** Overrides the page font for this item only. */
   font?: FontId;
-  /** Text size of this item, 0.6 to 2 (1 = as designed). */
+  /** Text size of this item, 0.5 to 8 (1 = as designed): big numbers and statements can go far past the template's size. */
   textScale?: number;
   /** Extra space above this item in px; negative pulls it closer to the item above. */
   offset?: number;
@@ -214,7 +214,7 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     if (!b || typeof b !== 'object') continue;
     const id = typeof b.id === 'string' && b.id ? b.id : `item:${result.length}`;
     const design = normalizeBlockDesign(b.design);
-    const textScale = bounded(b.textScale, .6, 2), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900), dx = bounded(b.dx, -600, 600), dy = bounded(b.dy, -1200, 1200), rotate = bounded(b.rotate, -180, 180), pad = bounded(b.pad, 0, 40), lineHeight = bounded(b.lineHeight, .6, 2.5), wordSpacing = bounded(b.wordSpacing, -.3, 1.5);
+    const textScale = bounded(b.textScale, .5, 8), offset = bounded(b.offset, -80, 120), inset = bounded(b.inset, 0, 80), height = bounded(b.height, 24, 900), dx = bounded(b.dx, -600, 600), dy = bounded(b.dy, -1200, 1200), rotate = bounded(b.rotate, -180, 180), pad = bounded(b.pad, 0, 40), lineHeight = bounded(b.lineHeight, .6, 2.5), wordSpacing = bounded(b.wordSpacing, -.3, 1.5);
     const icons = b.type === 'social' ? { ...(b.iconColor === 'brand' || /^#[0-9a-f]{6}$/i.test(b.iconColor) ? { iconColor: b.iconColor } : {}), ...(CARD_STYLES.includes(b.iconStyle) ? { iconStyle: b.iconStyle } : {}) } : {};
     const layout = { ...icons, ...(design ? { design } : {}), ...(FONT_IDS.includes(b.font) ? { font: b.font as FontId } : {}),
       ...(textScale && textScale !== 1 ? { textScale: Math.round(textScale * 100) / 100 } : {}), ...(offset ? { offset: Math.round(offset) } : {}), ...(inset ? { inset: Math.round(inset) } : {}), ...(height ? { height: Math.round(height) } : {}), ...(dx ? { dx: Math.round(dx) } : {}), ...(rotate ? { rotate: Math.round(rotate * 10) / 10 } : {}), ...(pad !== undefined ? { pad: Math.round(pad) } : {}), ...(lineHeight ? { lineHeight: Math.round(lineHeight * 100) / 100 } : {}), ...(wordSpacing ? { wordSpacing: Math.round(wordSpacing * 100) / 100 } : {}), ...([300, 400, 500, 600, 700].includes(b.weight) ? { weight: b.weight } : {}),

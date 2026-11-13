@@ -617,7 +617,7 @@ export class VisualCanvas {
         if (b.height) { b.height = undefined; el.removeAttribute('data-height'); el.style.removeProperty('--h'); }
         (this.doc!.defaultView as any).yourlinkiFit?.(); (this.doc!.defaultView as any).yourlinkiFloat?.();
       }, (v) => `${v}px`)) : null;
-    const textSize = font ? this.range('Text size', Math.round((b.textScale ?? 1) * 100), 60, 200, 5, (v) => {
+    const textSize = font ? this.range('Text size', Math.round((b.textScale ?? 1) * 100), 50, 800, 5, (v) => {
       // A box with a set height grows and shrinks with its text, like a text box in Canva.
       if (b.height) { b.height = Math.round(Math.max(24, Math.min(900, b.height * (v / 100) / (b.textScale ?? 1)))); el.style.setProperty('--h', `${b.height}px`); }
       b.textScale = v === 100 ? undefined : v / 100;
@@ -843,7 +843,7 @@ export class VisualCanvas {
         }
         setHeight(height * factor);
         if (b.type !== 'shape' && b.type !== 'image') {
-          const ts = Math.round(Math.max(.6, Math.min(2, scale0 * factor)) * 100) / 100;
+          const ts = Math.round(Math.max(.5, Math.min(8, scale0 * factor)) * 100) / 100;
           b.textScale = ts === 1 ? undefined : ts; el.style.setProperty('--text-scale', String(ts)); el.toggleAttribute('data-text-scale', ts !== 1);
         }
         (this.doc!.defaultView as any).yourlinkiFit?.();
