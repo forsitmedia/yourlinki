@@ -599,3 +599,6 @@ button.row:active { transition-duration: 0s; }
 .row-note { padding: 0 16px 12px; font-size: 12px; line-height: 1.4; color: var(--sec); }
 .music-select { width: 100%; padding: 8px 10px; border-radius: 9px; border: 0; background: var(--fill); color: inherit; font: inherit; font-size: 15px; }
 .group [hidden] { display: none !important; }
+.image-range output { cursor: text; border-radius: 4px; padding: 0 3px; }
+.image-range output:hover { background: var(--fill); color: var(--blue); }
+.value-edit { width: 52px; padding: 1px 4px; border: 1px solid var(--blue); border-radius: 5px; font: inherit; text-align: right; background: var(--card); color: inherit; }
