@@ -434,7 +434,7 @@ export class VisualCanvas {
         adjustImage({ src: image.src, frame: image.frame, title: 'Adjust Image',
           round: !!crop?.classList.contains('avatar'), aspect: crop && crop.clientHeight ? crop.clientWidth / crop.clientHeight : undefined,
           onChange: (frame) => { image.set(frame); this.o.commit(false); }, onFinish: () => this.finish() });
-      } }, 'Adjust image'),
+      }, title: 'Adjust image: zoom and position' }, 'Adjust'),
       h('button', { type: 'button', 'aria-label': 'Move selected item up', onclick: () => this.nudge(-1) }, '↑'),
       h('button', { type: 'button', 'aria-label': 'Move selected item down', onclick: () => this.nudge(1) }, '↓'));
     const resizeProfile = b.type === 'profile' && !!this.selection?.part && this.selection.part !== 'name';

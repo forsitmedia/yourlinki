@@ -262,6 +262,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outlin
 
 /* One responsive grid for both the published page and the visual editor. */
 .stack { grid-template-columns: repeat(12, minmax(0, 1fr)); row-gap: var(--page-gap, 18px); column-gap: 10px; }
+/* Rows keep their own height: when free items make the page taller, the extra room goes below, not between items. */
+.stack { align-content: start; }
 .stack > [data-block-id] { grid-column: span 12; min-width: 0; }
 .stack > .rows, .stack > .tiles { display: contents; }
 .stack > .rows > [data-block-id] { grid-column: span 12; min-width: 0; }
