@@ -97,7 +97,7 @@ export class VisualCanvas {
     const click = (e: MouseEvent) => {
       if (!this.enabled) return;
       const target = e.target as HTMLElement;
-      if (!target?.closest || target.closest('.canvas-ui')) return;
+      if (!target?.closest || target.closest('.canvas-ui, .music, .disco-btn')) return; // music and disco buttons work while editing too
       e.preventDefault(); e.stopImmediatePropagation();
       if (this.busy || this.suppressClick) { this.suppressClick = false; return; }
       const block = target.closest<HTMLElement>('[data-block-id]');
@@ -300,6 +300,24 @@ export class VisualCanvas {
     const w = Math.round(((inner + gap) * span / 12 - gap) / stack.clientWidth * 10000) / 100;
     b.float = { ...b.float, w, x: keepRight ? Math.round((b.float.x + b.float.w - w) * 100) / 100 : b.float.x };
     this.applyFloat(b, el);
+  }
+  /** A clean, organized arrangement for a template used for the first time: free items rejoin the column where they sit,
+   * empty spaces close, and spacing, stretched heights and text sizes go back to the template's own. Widths stay. */
+  cleanLayout() {
+    const tops = new Map(this.elements().map((el) => [el.dataset.blockId!, el.getBoundingClientRect().top]));
+    const cfg = this.o.config();
+    const floating = cfg.blocks.filter((b) => b.float || b.dx || b.dy).sort((a, b) => (tops.get(a.id) ?? 0) - (tops.get(b.id) ?? 0));
+    cfg.blocks = cfg.blocks.filter((b) => b.type !== 'space' && !floating.includes(b));
+    for (const item of floating) {
+      const top = tops.get(item.id) ?? Infinity, at = cfg.blocks.findIndex((b) => (tops.get(b.id) ?? -Infinity) > top);
+      if (at < 0) cfg.blocks.push(item); else cfg.blocks.splice(at, 0, item);
+    }
+    for (const b of cfg.blocks) {
+      b.float = undefined; b.dx = undefined; b.dy = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.textScale = undefined;
+      if (b.design?.start) { const { start, ...rest } = b.design; b.design = rest; }
+    }
+    cfg.profile.photoSize = undefined; cfg.profile.coverHeight = undefined;
+    this.select(null);
   }
   /** Gives every free item without an anchor one, as the page looks now (used before the template changes). */
   anchorAll() {

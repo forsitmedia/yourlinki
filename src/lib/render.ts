@@ -110,6 +110,8 @@ ${fontLink([cfg.look.font, ...cfg.blocks.filter((b) => !b.hidden).map((b) => b.f
 <main class="page">
 <button class="share glass" aria-label="Share">${icon('share', 18)}</button>
 ${cfg.look.music ? `<button class="music glass" type="button" data-music="${esc(cfg.look.music)}" aria-pressed="false" aria-label="Play music" title="Music">${icon('music', 17)}</button>` : ''}
+${cfg.look.disco ? `<button class="disco-btn glass${cfg.look.music ? ' after-music' : ''}" type="button" aria-pressed="false" aria-label="Disco mode" title="Disco mode">${icon('disco', 18)}</button>
+<div class="disco-lights" aria-hidden="true"><i></i><i></i><i></i><span class="disco-ball"></span></div>` : ''}
 <div class="stack">${blocks.join('\n')}</div>
 </main>
 ${preview ? '' : INTRO_SCRIPT}
@@ -118,6 +120,7 @@ ${FIT_SCRIPT}
 ${FLOAT_SCRIPT}
 ${cfg.blocks.some((b) => b.type === 'voice' && !b.hidden && safeAudio(b.audio)) ? VOICE_SCRIPT : ''}
 ${cfg.look.music ? MUSIC_SCRIPT : ''}
+${cfg.look.disco ? DISCO_SCRIPT : ''}
 ${preview ? PREVIEW_SCRIPT
   : `${SCHEDULE_SCRIPT}${SHARE_SCRIPT}${cfg.stats ? statsScript(cfg.stats) : ''}\n<script type="application/json" id="${CONFIG_ID}">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>`}
 </body></html>`;
@@ -416,6 +419,22 @@ document.querySelectorAll('.voice').forEach((v) => {
   audio.addEventListener('ended', () => { audio.currentTime = 0; state(false); show(); });
   audio.addEventListener('timeupdate', show); audio.addEventListener('loadedmetadata', show);
 });
+</script>`;
+
+/** Disco mode: a class on the page turns on the lights and the dancing; music starts with it when the page has some. */
+const DISCO_SCRIPT = `<script>
+(() => {
+  const button = document.querySelector('.disco-btn'), music = document.querySelector('.music');
+  let startedMusic = false;
+  button.addEventListener('click', (e) => {
+    e.preventDefault();
+    const on = !document.documentElement.classList.contains('disco');
+    document.documentElement.classList.toggle('disco', on);
+    button.setAttribute('aria-pressed', String(on)); button.classList.toggle('on', on);
+    if (music && on && music.getAttribute('aria-pressed') !== 'true') { music.click(); startedMusic = true; }
+    if (music && !on && startedMusic && music.getAttribute('aria-pressed') === 'true') { music.click(); startedMusic = false; }
+  });
+})();
 </script>`;
 
 const statsScript = (endpoint: string) => `<script>

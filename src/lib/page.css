@@ -623,3 +623,30 @@ html.canvas-editing .space { pointer-events: auto; }
 .music.on { background: var(--accent); color: var(--on-accent); animation: music-beat 1.4s ease-in-out infinite; }
 @keyframes music-beat { 50% { transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .music.on { animation: none; } }
+
+/* Disco mode (the 🪩 button). Everything keeps working: the lights let taps through and items only sway a little. */
+.disco-btn { position: absolute; top: 16px; right: 60px; z-index: 3; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }
+.disco-btn.after-music { right: 104px; }
+.disco-btn.on { background: conic-gradient(from 0deg, #ff2d92, #ffd60a, #30d158, #0a84ff, #bf5af2, #ff2d92); color: #fff; animation: disco-spin 2s linear infinite; }
+.disco-lights { display: none; position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; }
+html.disco .disco-lights { display: block; }
+.disco-lights i { position: absolute; left: 50%; top: -10%; width: 220vmax; height: 220vmax; margin-left: -110vmax; margin-top: -110vmax; mix-blend-mode: screen; opacity: .28;
+  background: repeating-conic-gradient(from 0deg, #ff2d92 0deg 6deg, transparent 6deg 30deg, #0a84ff 30deg 36deg, transparent 36deg 60deg, #ffd60a 60deg 66deg, transparent 66deg 90deg);
+  animation: disco-spin 9s linear infinite; }
+.disco-lights i:nth-child(2) { left: 0; top: 110%; opacity: .2; animation-duration: 13s; animation-direction: reverse; filter: hue-rotate(120deg); }
+.disco-lights i:nth-child(3) { left: 100%; top: 70%; opacity: .18; animation-duration: 7s; filter: hue-rotate(240deg); }
+.disco-ball { position: absolute; top: -18px; left: 50%; width: 64px; height: 64px; margin-left: -32px; border-radius: 50%;
+  background: repeating-linear-gradient(90deg, #fff 0 6px, #9aa 6px 8px), #ccd; background-blend-mode: multiply; box-shadow: 0 0 30px 8px #fff8, 0 0 80px 20px #bf5af266;
+  -webkit-mask: radial-gradient(circle, #000 70%, transparent 71%); mask: radial-gradient(circle, #000 70%, transparent 71%); animation: disco-ball 1.2s steps(6) infinite; }
+.disco-ball::before { content: ''; position: absolute; left: 50%; bottom: 100%; width: 2px; height: 40px; background: #ccc; }
+html.disco .stack > [data-block-id], html.disco .stack > :is(.rows, .tiles) > [data-block-id] { animation: disco-sway 1.36s ease-in-out infinite alternate; }
+html.disco .stack [data-block-id]:nth-child(even) { animation-direction: alternate-reverse; animation-duration: 1.36s; }
+html.disco .deco svg { animation: disco-spin 3s linear infinite; }
+html.disco :is(.hero img, .avatar img, .profile-cover img), html.disco .backdrop { animation: disco-hue 4s linear infinite; }
+@keyframes disco-spin { to { transform: rotate(360deg); } }
+@keyframes disco-sway { from { transform: rotate(-2.5deg) scale(.985); } to { transform: rotate(2.5deg) scale(1.015); } }
+@keyframes disco-hue { to { filter: hue-rotate(360deg) saturate(1.4); } }
+@keyframes disco-ball { to { background-position: 48px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html.disco .stack [data-block-id], html.disco .deco svg, .disco-lights i, .disco-ball, .disco-btn.on { animation: none !important; }
+}

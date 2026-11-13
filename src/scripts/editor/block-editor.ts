@@ -1,5 +1,5 @@
 import { platform } from '../../lib/platforms';
-import { safeImg, withScheme, NAME_ALIGN, CREDENTIAL_KINDS, type Credential, type PageBlock, type TextStyle } from '../../lib/types';
+import { MUSIC_STYLES, safeImg, withScheme, NAME_ALIGN, CREDENTIAL_KINDS, type Credential, type PageBlock, type TextStyle } from '../../lib/types';
 import { separateName, hasSeparateName } from '../../lib/layout';
 import { imageFrameStyle } from '../../lib/image-frame';
 import { moveSocial, socialKey } from '../../lib/social-order';
@@ -9,6 +9,7 @@ import { state, changed, onChange, uid, placeBlock, addAt, type AddAt } from './
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
 import { BOLD, LINK } from '../../lib/render';
+import { MUSIC_LABELS } from '../../lib/music';
 import { SHAPES, SHAPE_COLORS, shapeSvg } from '../../lib/shapes';
 import { linkSheet, socialSheet, mediaSheet, postSheet } from './sheets';
 import { h, group, navRow, actionRow, inputRow, textareaRow, switchRow, segmented, sheet, svg, toast, dangerRow } from './ui';
@@ -444,6 +445,31 @@ export function voiceSheet(block: PageBlock, isNew = false) {
   } });
 }
 
+/** Music and disco for the whole page: they appear as small buttons next to Share. "Listen" plays the music in the preview. */
+export function musicSheet() {
+  const look = state.cfg.look;
+  const body = h('div');
+  const pageButton = (cls: string) => document.querySelector<HTMLIFrameElement>('.preview-surface iframe, iframe')?.contentDocument?.querySelector<HTMLButtonElement>(cls);
+  const listen = () => {
+    const play = () => { const b = pageButton('.music'); if (b) { b.click(); setTimeout(draw, 50); } };
+    if (pageButton('.music')) play(); else setTimeout(play, 400); // the preview is being redrawn with the button
+  };
+  const playing = () => pageButton('.music')?.getAttribute('aria-pressed') === 'true';
+  const draw = () => body.replaceChildren(
+    group({ header: 'Background music', footer: 'Visitors see a ♪ button next to Share and the music starts only when they tap it. It is made live in their browser, so there is nothing to license and no copyright.' },
+      ...([['', 'Off', 'No music button'], ...MUSIC_STYLES.map((m) => [m, MUSIC_LABELS[m], { lounge: 'Soft piano chords, walking bass, brushes', lofi: 'Mellow keys, gentle beat, vinyl crackle', ambient: 'Slow, airy pads and chimes' }[m]])] as [string, string, string][]).map(([value, title, subtitle]) =>
+        navRow({ title, subtitle, chevron: false, trail: (look.music ?? '') === value ? svg('check', 18) : undefined, onClick: () => {
+          const wasPlaying = playing(); if (wasPlaying) pageButton('.music')?.click();
+          look.music = (value || undefined) as typeof look.music; changed(true); draw();
+        } })),
+      look.music ? actionRow(playing() ? '❚❚ Stop listening' : '▶ Listen', listen) : null),
+    group({ header: 'Disco mode', footer: 'A 🪩 button: lights sweep across the page, items dance and the music starts. Everything still works; tap again to stop.' },
+      switchRow('Disco button', !!look.disco, (v) => { look.disco = v || undefined; changed(true); }),
+      look.disco ? actionRow('Try it', () => { const b = pageButton('.disco-btn'); if (b) b.click(); else setTimeout(() => pageButton('.disco-btn')?.click(), 400); }) : null));
+  draw();
+  sheet('Music & Disco', () => [body], { onClose: () => { if (playing()) pageButton('.music')?.click(); if (pageButton('html.disco .disco-btn')) pageButton('.disco-btn')?.click(); changed(true); } });
+}
+
 export function addTextItem() {
   const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
   placeBlock(block); changed(true);
@@ -462,6 +488,7 @@ export function addItemMenu() {
       } }),
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
       navRow({ lead: svg('mic'), title: 'Voice Message', subtitle: 'Record a welcome in your own voice', onClick: () => { close(); addVoice(); } }),
+      navRow({ lead: svg('music'), title: 'Music & Disco', subtitle: state.cfg.look.music ? `${MUSIC_LABELS[state.cfg.look.music]} · a ♪ button visitors tap` : 'Background music and a disco mode button', onClick: () => { close(); musicSheet(); } }),
       navRow({ lead: svg('star'), title: 'Shape', subtitle: 'Abstract drawings and doodles', onClick: () => { close(); addShape(); } }),
       navRow({ lead: svg('cap'), title: 'Credentials', subtitle: 'Degrees, certificates, awards, work', onClick: () => { close(); addCredentials(); } }),
       navRow({ lead: svg('post'), title: 'Post Preview', subtitle: 'Cover, title and excerpt', onClick: () => { close(); addMediaItem('post'); } }),

@@ -110,6 +110,17 @@ export type Look = {
   font: FontId;
   /** Music visitors can turn on with the ♪ button: generated in their browser (no recording, no copyright). */
   music?: MusicStyle;
+  /** Shows the 🪩 button: visitors can switch the page into disco mode (lights, swaying items, music if set). */
+  disco?: boolean;
+};
+/** One template's arrangement: item order, each item's placement, its empty spaces, and the page spacing. */
+export type TemplateLayout = {
+  order: string[];
+  items: Record<string, Pick<PageBlock, 'design' | 'offset' | 'inset' | 'height' | 'dx' | 'dy' | 'float' | 'textScale'>>;
+  spaces: PageBlock[];
+  profile: { photoSize?: number; coverHeight?: number };
+  spacing?: number;
+  margin?: number;
 };
 export const MUSIC_STYLES = ['lounge', 'lofi', 'ambient'] as const;
 export type MusicStyle = typeof MUSIC_STYLES[number];
@@ -123,6 +134,8 @@ export type Config = {
   look: Look;
   /** Address of the creator's own stats worker (see stats/). Empty: the page sends nothing anywhere. */
   stats?: string;
+  /** Each template keeps its own arrangement (positions, spacing, sizes), so switching back restores it (see lib/layout.ts). */
+  layouts?: Partial<Record<Template, TemplateLayout>>;
 };
 
 export const TEXT_STYLES = ['title', 'subtitle', 'body', 'small'] as const;
@@ -146,6 +159,7 @@ export function normalize(raw: any = {}): Config {
   if ('spacing' in look) look.spacing = bounded(look.spacing, 8, 36);
   if ('margin' in look) look.margin = bounded(look.margin, 0, 60);
   if (!MUSIC_STYLES.includes(look.music)) delete look.music;
+  if (look.disco !== true) delete look.disco;
   return {
     onboarded: !!c.onboarded,
     profile: { name: '', handle: '', bio: '', photo: null, cover: null, ...c.profile,
@@ -161,6 +175,8 @@ export function normalize(raw: any = {}): Config {
       social: normalizeSocials(c.social).map(socialKey),
       highlights: list<Highlight>(c.highlights, (h) => h && typeof h.value === 'string').slice(0, 3).map((_, i) => String(i)) }),
     look,
+    ...(c.layouts && typeof c.layouts === 'object' ? { layouts: Object.fromEntries(Object.entries(c.layouts).filter(([k, v]: [string, any]) =>
+      TEMPLATE_IDS.includes(k as Template) && v && Array.isArray(v.order) && v.items && typeof v.items === 'object' && Array.isArray(v.spaces))) } : {}),
     ...(typeof c.stats === 'string' && /^https:\/\/[^\s"'<>]+$/.test(c.stats) ? { stats: c.stats.replace(/\/+$/, '') } : {}),
   };
 }

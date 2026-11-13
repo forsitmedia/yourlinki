@@ -1,4 +1,4 @@
-import type { Config, PageBlock } from './types';
+import type { Config, PageBlock, TemplateLayout } from './types';
 import type { ImageFrame } from './image-frame';
 import type { ButtonShape, ButtonStyle } from './button-shape';
 import { socialKey } from './social-order';
@@ -111,3 +111,29 @@ export function separateGroup(cfg: Config, type: 'social' | 'highlights', separa
   } else cfg.blocks.splice(at, 0, { id: type, type, ...(whole.hidden ? { hidden: true } : {}) });
 }
 export const isSeparated = (cfg: Config, type: 'social' | 'highlights') => cfg.blocks.some((b) => b.type === type && b.part);
+
+/** What a template's arrangement is made of: where items sit and how big they are, not what they say or how they look. */
+const PLACEMENT = ['design', 'offset', 'inset', 'height', 'dx', 'dy', 'float', 'textScale'] as const;
+
+/** The current arrangement, to keep for the template being left. */
+export function saveLayout(cfg: Config): TemplateLayout {
+  const items: TemplateLayout['items'] = {};
+  for (const b of cfg.blocks) if (b.type !== 'space') items[b.id] = clone(Object.fromEntries(PLACEMENT.filter((k) => b[k] !== undefined).map((k) => [k, b[k]])));
+  return { order: cfg.blocks.map((b) => b.id), items, spaces: clone(cfg.blocks.filter((b) => b.type === 'space')),
+    profile: { photoSize: cfg.profile.photoSize, coverHeight: cfg.profile.coverHeight }, spacing: cfg.look.spacing, margin: cfg.look.margin };
+}
+
+/** Puts a template's kept arrangement back. Items added since then keep a clean placement at the end, deleted ones stay deleted. */
+export function restoreLayout(cfg: Config, saved: TemplateLayout) {
+  const byId = new Map(cfg.blocks.filter((b) => b.type !== 'space').map((b) => [b.id, b]));
+  const spaces = new Map(saved.spaces.map((b) => [b.id, clone(b)]));
+  const blocks: PageBlock[] = [];
+  for (const id of saved.order) {
+    const b = byId.get(id) ?? spaces.get(id); if (!b) continue;
+    if (b.type !== 'space') { for (const k of PLACEMENT) delete b[k]; Object.assign(b, clone(saved.items[id] ?? {})); }
+    blocks.push(b); byId.delete(id);
+  }
+  cfg.blocks = [...blocks, ...byId.values()];
+  cfg.profile.photoSize = saved.profile.photoSize; cfg.profile.coverHeight = saved.profile.coverHeight;
+  cfg.look.spacing = saved.spacing; cfg.look.margin = saved.margin;
+}

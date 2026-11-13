@@ -7,10 +7,11 @@ import { TEMPLATES } from '../../lib/templates';
 import { youtubeVideo, youtubeCover, postSource } from '../../lib/media';
 import { isVisible, safeImg, MUSIC_STYLES, type Look, type PageBlock } from '../../lib/types';
 import { MUSIC_LABELS } from '../../lib/music';
+import { saveLayout, restoreLayout } from '../../lib/layout';
 import { state, changed } from './state';
 import { imageFrameStyle } from '../../lib/image-frame';
 import { sortable } from './reorder';
-import { h, group, actionRow, segmented, swatches, svg, toast, hostname } from './ui';
+import { h, group, actionRow, switchRow, segmented, swatches, svg, toast, hostname } from './ui';
 
 let reordering = false;
 
@@ -96,8 +97,17 @@ export function pageTab(): HTMLElement {
       h('div', { class: 'template-grid' }, TEMPLATES.map((t) =>
         h('button', { type: 'button', class: `template-option${cfg.look.template === t.id ? ' selected' : ''}`, 'aria-pressed': String(cfg.look.template === t.id), 'aria-label': `${t.name} template`, onclick: () => {
           if (cfg.look.template === t.id) return;
-          dispatchEvent(new Event('yourlinki-before-template')); // free items remember what they sit on, measured in the old template
-          cfg.look = { ...t.look };
+          // Each template keeps its own arrangement: keep this one, then bring back the new template's (or start it clean).
+          const first = !cfg.layouts;
+          const layouts = cfg.layouts ??= {};
+          const current = saveLayout(cfg);
+          layouts[cfg.look.template] = current;
+          if (first && cfg.look.template !== 'photo') layouts.photo ??= current; // pages made before this were arranged in Photo
+          const saved = layouts[t.id];
+          if (!saved) dispatchEvent(new Event('yourlinki-clean-layout')); // measured while the old template is still shown
+          const { music, disco } = cfg.look;
+          cfg.look = { ...t.look, ...(music ? { music } : {}), ...(disco ? { disco } : {}) };
+          if (saved) restoreLayout(cfg, saved);
           changed(true);
         } },
           h('span', { class: `template-mini layout-${t.id}`, 'aria-hidden': 'true' },
@@ -109,7 +119,7 @@ export function pageTab(): HTMLElement {
             h('span', { class: 'mini-social' }, h('i'), h('i'), h('i'))),
           h('span', { class: 'template-name' }, t.name, cfg.look.template === t.id && h('span', { class: 'template-check', 'aria-hidden': 'true' }, '✓')),
           h('span', { class: 'template-description' }, t.description)))),
-      h('p', { class: 'group-f' }, 'Same content, a different feel. Your item order stays yours.'));
+      h('p', { class: 'group-f' }, 'Same content, a different feel. Each design keeps its own arrangement: switch back any time and yours is restored.'));
   }
 
   function appearanceGroup() {
@@ -133,6 +143,7 @@ export function pageTab(): HTMLElement {
       line('Button Color', swatches(['', '#ffffff', '#000000', '#0a84ff', '#ff375f', '#ff9f0a', '#30d158', '#bf5af2'], look.accent, (v) => set('accent', v))),
       line('Font', fontControl),
       line('Music', segmented([{ value: '', label: 'Off' }, ...MUSIC_STYLES.map((m) => ({ value: m, label: MUSIC_LABELS[m] }))], look.music ?? '', (v) => set('music', (v || undefined) as Look['music'], true))),
+      switchRow('Disco button 🪩', !!look.disco, (v) => set('disco', v || undefined, true)),
       look.music && h('p', { class: 'row-note' }, 'A ♪ button appears next to Share. Music starts only when a visitor taps it, and it is made live in their browser, so there is no copyright. Try it in Preview.'));
   }
 }
