@@ -55,10 +55,12 @@ function refreshHistory() {
 onChange(() => setTimeout(refreshHistory));
 setInterval(refreshHistory, 800); // typing is grouped into one step after a pause, so check now and then too
 document.addEventListener('keydown', (e) => {
-  const typing = (e.target as HTMLElement)?.closest?.('input, textarea, [contenteditable]');
+  // Only real text fields keep their own undo; sliders, buttons and checkboxes don't, so Cmd/Ctrl+Z still undoes the design.
+  const typing = (e.target as HTMLElement)?.closest?.('textarea, [contenteditable], input:not([type="range"], [type="checkbox"], [type="radio"], [type="color"], [type="button"])');
   if (!typing && (e.key === 'Delete' || e.key === 'Backspace') && !document.querySelector('.sheet')) { e.preventDefault(); canvas.deleteSelection(); refreshHistory(); return; }
-  if (typing || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
-  e.preventDefault(); e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
+  const key = e.key.toLowerCase();
+  if (typing || !(e.metaKey || e.ctrlKey) || (key !== 'z' && key !== 'y')) return;
+  e.preventDefault(); key === 'y' || e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
 });
 const surface = h('div', { class: 'preview-surface' }, frame);
 const deviceArea = h('div', { class: 'device-area' }, surface);
@@ -125,12 +127,7 @@ onChange((rerender) => {
 });
 addEventListener('keydown', (e) => {
   if (!(e.metaKey || e.ctrlKey)) return;
-  if (e.key === 's') { e.preventDefault(); openPublish(); return; }
-  // Text fields keep their own undo; open sheets edit objects an undo would replace.
-  const typing = (e.target as HTMLElement).closest?.('input, textarea, [contenteditable]');
-  if (typing || document.querySelector('.sheet-back')) return;
-  const key = e.key.toLowerCase();
-  if (key === 'z' || key === 'y') { e.preventDefault(); key === 'y' || e.shiftKey ? redo() : undo(); }
+  if (e.key === 's') { e.preventDefault(); openPublish(); } // undo and redo are handled once, above
 });
 markChanges();
 draw(); updatePreview();

@@ -111,14 +111,13 @@ export class VisualCanvas {
     };
     const key = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); this.o.save(); return; }
+      // Undo works in the page too, with or without a selection.
+      if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase())) { e.preventDefault(); e.key.toLowerCase() === 'y' || e.shiftKey ? this.redo() : this.undo(); return; }
       if (!this.enabled || !this.selection) return;
       if (e.key === 'Escape') { e.preventDefault(); if (this.busy) this.stopGesture?.(); else this.select(null); }
       if (this.busy) return;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.deleteSelection(); return; }
       if (this.selection?.socialId && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); this.nudgeSocial(e.key === 'ArrowLeft' ? -1 : 1); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault(); e.shiftKey ? this.redo() : this.undo();
-      }
     };
     doc.addEventListener('pointerdown', press);
     doc.addEventListener('contextmenu', menu);
@@ -442,7 +441,7 @@ export class VisualCanvas {
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -458,7 +457,13 @@ export class VisualCanvas {
     const shape = link && usesButton(link, this.o.config().look.template) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Button shape'),
       shapePicker(buttonShape(link, this.o.config().look.template), (value) => this.action(() => { link.buttonShape = value; el.dataset.buttonShape = value; })),
       h('p', { style: 'margin-top:10px' }, 'Button style'),
-      stylePicker(buttonStyle(link), (value) => this.action(() => { link.buttonStyle = value; el.dataset.buttonStyle = value; }))) : null;
+      stylePicker(buttonStyle(link), (value) => this.action(() => { link.buttonStyle = value; el.dataset.buttonStyle = value; })),
+      // Padding: how close the button's edge sits to its text. Its height follows, so a stretched height is let go.
+      this.range('Padding', b.pad ?? Math.round(parseFloat(getComputedStyle(el).paddingTop) || 14), 0, 40, 1, (v) => {
+        b.pad = v; el.style.setProperty('--pad', `${v}px`); el.setAttribute('data-pad', '');
+        if (b.height) { b.height = undefined; el.removeAttribute('data-height'); el.style.removeProperty('--h'); }
+        (this.doc!.defaultView as any).yourlinkiFit?.(); (this.doc!.defaultView as any).yourlinkiFloat?.();
+      }, (v) => `${v}px`)) : null;
     const textSize = font ? this.range('Text size', Math.round((b.textScale ?? 1) * 100), 60, 200, 5, (v) => {
       // A box with a set height grows and shrinks with its text, like a text box in Canva.
       if (b.height) { b.height = Math.round(Math.max(24, Math.min(900, b.height * (v / 100) / (b.textScale ?? 1)))); el.style.setProperty('--h', `${b.height}px`); }

@@ -579,3 +579,4 @@ button.row:active { transition-duration: 0s; }
 .canvas-inspector .font-chip b { font-size: 14px; }
 .canvas-inspector .font-chip span { font-size: 8.5px; white-space: nowrap; }
 .canvas-inspector .canvas-details { margin-top: 8px; padding-top: 6px; }
+.canvas-inspector .canvas-actions button { white-space: nowrap; }

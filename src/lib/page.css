@@ -575,3 +575,6 @@ html.canvas-editing .deco { pointer-events: auto; }
 /* Empty space: keeps room where an item was (only visible in the layout editor). */
 .space { min-height: 1px; pointer-events: none; }
 html.canvas-editing .space { pointer-events: auto; }
+
+/* Button padding chosen per button: the button hugs its text (0) or gets roomier. */
+.page .stack :is(.row-link, .primary)[data-pad] { min-height: 0 !important; padding: var(--pad) !important; padding-inline: calc(var(--pad) * 1.3 + 6px) !important; }
