@@ -662,3 +662,19 @@ html.disco :is(.hero img, .avatar img, .profile-cover img), html.disco .backdrop
 /* Text color chosen per item. */
 .page .stack [data-tc], .page .stack [data-tc] :is(h1, h2, h3, p, span, figcaption, li, div, a, strong, em, u, s, .handle) { color: var(--tc) !important; }
 .page .stack [data-tc] li::marker { color: var(--tc); }
+
+/* The voice message fits any size: narrower shows a smaller player, very narrow just play and length. */
+.voice { container-type: inline-size; min-width: 0; overflow: hidden; box-sizing: border-box; }
+.voice-body, .voice-wave { min-width: 0; overflow: hidden; }
+.voice-wave i { min-width: 1px; }
+.stack .voice[data-height] .voice-play { width: min(64px, calc(var(--h) - 20px)); height: min(64px, calc(var(--h) - 20px)); }
+@container (max-width: 250px) {
+  .voice-play { width: 34px; height: 34px; }
+  .voice-play svg { width: 15px; height: 15px; }
+  .voice-title { font-size: 11px; }
+  .voice-wave { height: 20px; gap: 1px; }
+  .voice-time { font-size: 10px; }
+}
+@container (max-width: 160px) {
+  .voice-body { display: none; }
+}
