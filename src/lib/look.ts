@@ -26,8 +26,8 @@ export const FONT_LABELS: Record<Look['font'], string> = {
 };
 /** Fonts that come from Google Fonts (the others are already on every phone). */
 const WEB_FONTS: Partial<Record<Look['font'], string>> = {
-  inter: 'Inter:wght@400;500;600;700', poppins: 'Poppins:wght@400;500;600;700', montserrat: 'Montserrat:wght@400;500;600;700',
-  grotesk: 'Space+Grotesk:wght@400;500;600;700', syne: 'Syne:wght@400;600;700;800', playfair: 'Playfair+Display:ital,wght@0,400;0,600;0,700;1,400',
+  inter: 'Inter:wght@300;400;500;600;700', poppins: 'Poppins:wght@300;400;500;600;700', montserrat: 'Montserrat:wght@300;400;500;600;700',
+  grotesk: 'Space+Grotesk:wght@300;400;500;600;700', syne: 'Syne:wght@400;600;700;800', playfair: 'Playfair+Display:ital,wght@0,400;0,600;0,700;1,400',
   dmserif: 'DM+Serif+Display:ital@0;1', lora: 'Lora:ital,wght@0,400;0,600;0,700;1,400', bebas: 'Bebas+Neue', archivo: 'Archivo+Black',
   caveat: 'Caveat:wght@400;600;700', pacifico: 'Pacifico',
 };

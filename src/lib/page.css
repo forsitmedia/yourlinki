@@ -599,3 +599,7 @@ html.canvas-editing .space { pointer-events: auto; }
 .page .tile[data-text="right"] span { text-align: left; }
 /* With text beside it, the picture keeps its shape and the row is as tall as the picture (a stretched height is ignored). */
 .stack .tile[data-height]:is([data-text="left"], [data-text="right"]) { height: auto !important; }
+
+/* Text weight chosen per item; words marked bold inside it stay a step heavier. */
+.page .stack [data-weight], .page .stack [data-weight] :is(h1, h2, h3, p, span, figcaption, li, div, a) { font-weight: var(--wt) !important; }
+.page .stack [data-weight] :is(b, strong) { font-weight: min(900, calc(var(--wt) + 300)) !important; }

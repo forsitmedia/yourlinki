@@ -581,3 +581,9 @@ button.row:active { transition-duration: 0s; }
 .canvas-inspector .canvas-details { margin-top: 8px; padding-top: 6px; }
 .canvas-inspector .canvas-actions button { white-space: nowrap; }
 .canvas-inspector .tile-style .seg button { font-size: 11px; padding-inline: 3px; }
+.canvas-inspector .canvas-range output { cursor: text; border-radius: 4px; }
+.canvas-inspector .canvas-range output:hover { background: var(--fill); color: var(--blue); }
+.canvas-inspector .canvas-range-edit { order: 3; width: 40px; padding: 1px 3px; border: 1px solid var(--blue); border-radius: 5px; font: inherit; font-size: 11px; text-align: right; background: var(--card); color: var(--text, inherit); }
+.canvas-inspector .canvas-weight { margin-top: 8px; }
+.canvas-inspector .canvas-weight > p { color: var(--sec); font-size: 11px; margin-bottom: 4px; }
+.canvas-inspector .canvas-weight .seg button { font-size: 11px; padding-inline: 3px; }

@@ -407,19 +407,58 @@ export class VisualCanvas {
   }
   private span() {
     const b = this.block(); if (b?.design) return b.design.span;
-    const value = this.doc?.defaultView?.getComputedStyle(this.element()!).gridColumnEnd.match(/span\s+(\d+)/);
-    return value ? Number(value[1]) : 12;
+    return this.element() ? this.columns(this.element()!).span : 12;
   }
   /** Width is set in one place only: changing it drops the old Side inset, so the item is exactly as wide as chosen. */
   private clearInset(b: PageBlock, el: HTMLElement) {
     if (!b.inset) return;
     b.inset = undefined; el.style.removeProperty('--inset'); el.removeAttribute('data-inset');
   }
-  private applySpan(value: number) {
+  /** Columns an item takes now: first column (1–12) and how many. */
+  private columns(o: HTMLElement) {
+    const win = this.doc!.defaultView!, cs = win.getComputedStyle(o), stack = this.doc!.querySelector<HTMLElement>('.stack')!, st = win.getComputedStyle(stack);
+    const pad = parseFloat(st.paddingLeft) || 0, gap = parseFloat(st.columnGap) || 0, column = (stack.clientWidth - pad * 2 + gap) / 12;
+    // "span 4" alone is reported as the start ("span 4 / auto"); "1 / span 4" as start 1, end "span 4".
+    const spanOf = (v: string) => Number(v.match(/span\s+(\d+)/)?.[1]) || 0;
+    const span = spanOf(cs.gridColumnEnd) || spanOf(cs.gridColumnStart) || Math.max(1, Math.round((o.offsetWidth + gap) / column));
+    const start = Number(cs.gridColumnStart) || Math.max(1, Math.min(13 - span, Math.round((o.offsetLeft - pad) / column) + 1));
+    return { start, span, end: start + span - 1 };
+  }
+  /** Items side by side stay side by side: an item growing into its neighbour makes the neighbour narrower (never below
+   * 2 columns; then the item stops growing). Returns where the item fits, or null when nothing shares its row. */
+  private fitRow(b: PageBlock, el: HTMLElement, start: number, span: number) {
+    const top = el.offsetTop, bottom = top + el.offsetHeight, own = this.columns(el);
+    const row = this.elements().filter((o) => o !== el && !o.hasAttribute('data-float') && o.offsetHeight && o.offsetTop < bottom - 2 && o.offsetTop + o.offsetHeight > top + 2);
+    if (!row.length) return null;
+    if (start + span - 1 > 12) span = 13 - start;
+    for (const o of row) {
+      const ob = this.o.config().blocks.find((x) => x.id === o.dataset.blockId); if (!ob) continue;
+      const c = this.columns(o);
+      let next: { start: number; span: number } | null = null;
+      if (c.start > own.start && c.start <= start + span - 1) { // on the right: it gives up its left columns
+        let first = start + span;
+        if (c.end - first + 1 < 2) { first = c.end - 1; span = first - start; }
+        next = { start: first, span: c.end - first + 1 };
+      } else if (c.start < own.start && c.end >= start) { // on the left: it gives up its right columns
+        let last = start - 1;
+        if (last - c.start + 1 < 2) { last = c.start + 1; const end = start + span - 1; start = last + 1; span = end - start + 1; }
+        next = { start: c.start, span: last - c.start + 1 };
+      }
+      if (!next) continue;
+      ob.design = { span: next.span, start: next.start, align: ob.design?.align ?? 'auto' };
+      o.style.gridColumn = designStyle(ob.design).replace('grid-column:', ''); o.dataset.layoutSpan = String(next.span);
+      const tier = sizeTier(next.span); if (tier) o.dataset.size = tier; else delete o.dataset.size;
+    }
+    return { start, span: Math.max(2, span) };
+  }
+  /** `keepRow`: items beside it make room instead of the item moving to its own row (the Full/Half/Third presets don't). */
+  private applySpan(value: number, keepRow = true) {
     const b = this.block(), el = this.element(); if (!b || !el) return;
     this.clearInset(b, el);
-    const span = Math.round(bounded(value, 2, 12) ?? 12);
-    b.design = { span, align: b.design?.align ?? 'auto', ...(b.design?.start ? { start: Math.min(b.design.start, 13 - span) } : {}) };
+    let span = Math.round(bounded(value, 2, 12) ?? 12), start = b.design?.start;
+    const fit = keepRow && !b.float ? this.fitRow(b, el, start ?? this.columns(el).start, span) : null;
+    if (fit) ({ start, span } = fit);
+    b.design = { span, align: b.design?.align ?? 'auto', ...(start ? { start: Math.min(start, 13 - span) } : {}) };
     if (b.float) this.floatSpan(b, el, span, false);
     el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
     const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size; // text scales live while resizing
@@ -440,8 +479,27 @@ export class VisualCanvas {
     this.o.inspector.querySelector<HTMLButtonElement>('[data-undo]')?.toggleAttribute('disabled', !this.o.canUndo());
     this.o.inspector.querySelector<HTMLButtonElement>('[data-redo]')?.toggleAttribute('disabled', !this.o.canRedo());
   }
-  private range(label: string, value: number, min: number, max: number, step: number, set: (v: number) => void, format: (v: number) => string) {
-    const output = h('output', {}, format(value));
+  /** A slider with its value beside it. Clicking the value lets you type an exact one (in the unit shown: `parse` turns it into
+   * the slider's value, e.g. a width typed in % into columns); Enter or leaving the box applies it, Escape keeps the old one. */
+  private range(label: string, value: number, min: number, max: number, step: number, set: (v: number) => void, format: (v: number) => string, parse: (typed: number) => number = (n) => n) {
+    const output = h('output', { title: 'Click to type a value' }, format(value));
+    output.addEventListener('click', (event) => {
+      event.preventDefault(); // the value sits in the slider's label: don't move focus to the slider
+      const field = h('input', { type: 'text', inputmode: 'decimal', class: 'canvas-range-edit', 'aria-label': `${label} value`, value: String(parseFloat(output.textContent ?? '') || 0) }) as HTMLInputElement;
+      let closed = false;
+      const close = (apply: boolean) => {
+        if (closed) return; closed = true;
+        const typed = parseFloat(field.value.replace(',', '.'));
+        field.replaceWith(output);
+        if (!apply || !Number.isFinite(typed)) return;
+        const v = Math.min(max, Math.max(min, +(Math.round(parse(typed) / step) * step).toFixed(4)));
+        this.history.begin(); set(v); (input as HTMLInputElement).value = String(v); output.textContent = format(v); this.position(); this.finish();
+      };
+      field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); close(true); } if (e.key === 'Escape') { e.preventDefault(); close(false); } });
+      field.addEventListener('blur', () => close(true));
+      field.addEventListener('click', (e) => e.preventDefault());
+      output.replaceWith(field); field.focus(); field.select();
+    });
     const input = h('input', { type: 'range', min, max, step, value, 'aria-label': label, 'data-control': label, // range before value, or negative values clamp to 0
       oninput: (event: Event) => { this.history.begin(); const v = Number((event.target as HTMLInputElement).value); set(v); output.textContent = format(v); this.position(); },
       onchange: () => this.finish(),
@@ -507,21 +565,21 @@ export class VisualCanvas {
       ? target?.classList.contains('avatar')
         ? this.range('Logo size', this.o.config().profile.photoSize ?? target.clientWidth, 48, 180, 1, (v) => this.setProfileSize(v, true), (v) => `${v}px`)
         : this.range(this.selection?.part === 'photo' ? 'Photo height' : 'Cover height', this.o.config().profile.coverHeight ?? target?.clientHeight ?? 184, 100, 540, 1, (v) => this.setProfileSize(v, false), (v) => `${v}px`)
-      : this.range('Item width', this.span(), 2, 12, 1, (v) => this.applySpan(v), (v) => `${Math.round(v / 12 * 100)}%`);
-    const width = h('div', { class: 'canvas-widths' }, [ { label: 'Full', span: 12 }, { label: 'Half', span: 6 }, { label: 'Third', span: 4 } ].map((o) => h('button', { type: 'button', class: this.span() === o.span ? 'on' : '', onclick: () => this.action(() => this.applySpan(o.span)) }, o.label)));
+      : this.range('Item width', this.span(), 2, 12, 1, (v) => this.applySpan(v), (v) => `${Math.round(v / 12 * 100)}%`, (n) => n / 100 * 12);
+    const width = h('div', { class: 'canvas-widths' }, [ { label: 'Full', span: 12 }, { label: 'Half', span: 6 }, { label: 'Third', span: 4 } ].map((o) => h('button', { type: 'button', class: this.span() === o.span ? 'on' : '', onclick: () => this.action(() => this.applySpan(o.span, false)) }, o.label)));
     const details = h('details', { class: 'canvas-details', open: this.detailsOpen, ontoggle: (e: Event) => { this.detailsOpen = (e.target as HTMLDetailsElement).open; } }, h('summary', {}, 'More design options'),
-      segmented([{ value: 'auto', label: 'Flow' }, { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }], b.design?.align ?? 'auto', (align) => this.action(() => { b.design = { span: this.span(), align }; this.applySpan(b.design.span); })),
+      segmented([{ value: 'auto', label: 'Flow' }, { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }], b.design?.align ?? 'auto', (align) => this.action(() => { b.design = { span: this.span(), align }; this.applySpan(b.design.span, false); })),
       image && this.range('Image zoom', normalizeImageFrame(image.frame).zoom, normalizeImageFrame(image.frame).fit === 'cover' ? 1 : .5, 4, .01, (zoom) => {
         const f = normalizeImageFrame({ ...image.frame, zoom }); image.set(f);
         const pictures = image.img?.closest('[data-profile-part]')?.querySelectorAll<HTMLImageElement>('img') ?? (image.img ? [image.img] : []);
         pictures.forEach((img) => { img.style.cssText = imageFrameStyle(f); });
-      }, (v) => `${Math.round(v * 100)}%`),
+      }, (v) => `${Math.round(v * 100)}%`, (n) => n / 100),
       b.type === 'youtube' && segmented([{ value: 'landscape', label: '16:9' }, { value: 'wide', label: 'Wide' }, { value: 'square', label: 'Square' }], b.videoAspect ?? 'landscape', (aspect) => this.action(() => {
         b.videoAspect = aspect; this.element()?.querySelector<HTMLElement>('.video-player')?.style.setProperty('--video-aspect', videoRatio(aspect));
       })),
       h('button', { type: 'button', class: 'canvas-reset', onclick: () => this.action(() => {
         b.design = undefined;
-        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined; b.lineHeight = undefined; b.wordSpacing = undefined;
+        b.textScale = undefined; b.offset = undefined; b.inset = undefined; b.height = undefined; b.vertical = undefined; b.cardStyle = undefined; b.dx = undefined; b.dy = undefined; b.float = undefined; b.iconColor = undefined; b.iconStyle = undefined; b.rotate = undefined; b.pad = undefined; b.lineHeight = undefined; b.wordSpacing = undefined; b.weight = undefined;
         if (b.type === 'link') { const link = this.o.config().links.find((l) => l.id === b.linkId); if (link) { link.buttonShape = undefined; link.buttonStyle = undefined; } }
         if (b.type === 'youtube') b.videoAspect = undefined;
         if (b.type === 'profile') { this.o.config().profile.photoSize = undefined; this.o.config().profile.coverHeight = undefined; }
@@ -571,7 +629,7 @@ export class VisualCanvas {
         h('p', {}, 'Tile size'),
         h('div', { class: 'canvas-widths tile-presets' }, TILE_PRESETS.map((p) => h('button', {
           type: 'button', class: link.tile?.shape === p.shape && this.span() === p.span ? 'on' : '',
-          onclick: () => this.action(() => { link.tile = { ...link.tile, shape: p.shape }; this.applySpan(p.span); }),
+          onclick: () => this.action(() => { link.tile = { ...link.tile, shape: p.shape }; this.applySpan(p.span, false); }),
         }, h('span', { class: `tile-preset-icon preset-${p.label.toLowerCase()}`, 'aria-hidden': 'true' }), p.label))),
         h('p', { style: 'margin-top:10px' }, 'Image style'), tileStylePicker(link, this.o.config().look.template, (change) => this.action(change), false)) : null;
     // Groups (social icons, highlights) can be taken apart so each piece is placed on its own, and put back together.
@@ -596,13 +654,13 @@ export class VisualCanvas {
     const rotation = this.selection?.part ? null : this.range('Rotation', b.rotate ?? 0, -180, 180, 1, (v) => {
       b.rotate = v || undefined; el.style.setProperty('--rot', `${v}deg`); el.toggleAttribute('data-rotate', !!v);
     }, (v) => `${v}°`);
-    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(textSize ? [textSize] : []), ...(lineSpacing ? [lineSpacing] : []), ...(wordSpacing ? [wordSpacing] : []), ...(this.selection?.part === 'name' ? [] : [offset]), ...(rotation ? [rotation] : []));
+    const textControls = h('div', { class: 'canvas-text-controls' }, ...(free ? [free] : []), ...(this.selection?.part === 'name' ? [] : [offset]), ...(textSize ? [textSize] : []), ...(lineSpacing ? [lineSpacing] : []), ...(wordSpacing ? [wordSpacing] : []), ...(rotation ? [rotation] : []));
     this.o.inspector.replaceChildren(tools, actions, textControls, ...(profileParts ? [profileParts] : []), ...(groupControls ? [groupControls] : []), ...(textStyle ? [textStyle] : []), ...(card ? [card] : []), ...(b.type === 'social' && !b.part ? [this.socialPicker()] : []), ...(b.type === 'social' ? [this.iconColors(b)] : []), ...(b.type === 'social' ? [h('div', { class: 'canvas-shapes' }, h('p', {}, 'Icons'),
         segmented([{ value: 'row', label: 'Row' }, { value: 'column', label: 'Column' }], b.vertical ? 'column' : 'row', (v) => this.action(() => {
           b.vertical = v === 'column' || undefined;
           el.toggleAttribute('data-vertical', !!b.vertical);
-          if (b.vertical && this.span() > 4) this.applySpan(4); // a column only needs a narrow strip beside other items
-          if (!b.vertical && this.span() <= 4) this.applySpan(12);
+          if (b.vertical && this.span() > 4) this.applySpan(4, false); // a column only needs a narrow strip beside other items
+          if (!b.vertical && this.span() <= 4) this.applySpan(12, false);
         })))] : []), ...(nameControls ? [nameControls] : []), ...(shape ? [shape] : []), ...(tileStyle ? [tileStyle] : []), ...(font ? [font] : []),
       ...(this.selection?.part === 'name' ? [] : [sizeControl, width, details]));
     if (focus) [...this.o.inspector.querySelectorAll<HTMLInputElement>('input[data-control]')].find((input) => input.dataset.control === focus)?.focus({ preventScroll: true });
@@ -627,7 +685,17 @@ export class VisualCanvas {
         type: 'button', class: 'font-chip' + ((b.font ?? '') === o.value ? ' on' : ''), 'aria-pressed': String((b.font ?? '') === o.value),
         style: o.value ? `font-family:${FONTS[o.value]}` : undefined, title: o.value ? `${o.label} font for this item` : 'Use the page font',
         onclick: () => this.action(() => { if (o.value) b.font = o.value; else delete b.font; }),
-      }, h('b', {}, 'Aa'), h('span', {}, o.label)))));
+      }, h('b', {}, 'Aa'), h('span', {}, o.label)))),
+      this.weightPicker(b));
+  }
+  /** Text weight for this item: lighter or heavier than the template draws it (bold words inside stay bolder). */
+  private weightPicker(b: PageBlock) {
+    const el = this.element(), text = el?.querySelector<HTMLElement>('h1, h2, p, span, figcaption') ?? el;
+    const now = Number(text ? getComputedStyle(text).fontWeight : 400) || 400;
+    const options = [{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '500', label: 'Medium' }, { value: '600', label: 'Semi' }, { value: '700', label: 'Bold' }];
+    const current = String(b.weight ?? [300, 400, 500, 600, 700].reduce((p, q) => Math.abs(q - now) < Math.abs(p - now) ? q : p));
+    return h('div', { class: 'canvas-weight' }, h('p', {}, 'Weight'),
+      segmented(options, current, (v) => this.action(() => { b.weight = Number(v) as PageBlock['weight']; })));
   }
   /** Name alignment, and moving the name apart from the photo (or back). */
   private nameControls(separate: boolean) {
@@ -752,7 +820,8 @@ export class VisualCanvas {
         else {
           const first = Math.max(1, end - columns + 1);
           this.clearInset(b, el);
-          b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
+          const fit = b.float ? null : this.fitRow(b, el, first, end - first + 1);
+          b.design = fit ? { span: fit.span, align: b.design?.align ?? 'auto', start: fit.start } : { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
           el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
           if (b.float) this.floatSpan(b, el, b.design.span, true);
           const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size;
@@ -775,7 +844,8 @@ export class VisualCanvas {
       if (across === 'left') {
         const first = Math.max(1, Math.min(end - 1, Math.round(start + (e.clientX - x) / column)));
         this.clearInset(b, el);
-        b.design = { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
+        const fit = b.float ? null : this.fitRow(b, el, first, end - first + 1);
+        b.design = fit ? { span: fit.span, align: b.design?.align ?? 'auto', start: fit.start } : { span: end - first + 1, align: b.design?.align ?? 'auto', start: first };
         el.style.gridColumn = designStyle(b.design).replace('grid-column:', ''); el.dataset.layoutSpan = String(b.design.span);
         if (b.float) this.floatSpan(b, el, b.design.span, true);
         const tier = sizeTier(b.design.span); if (tier) el.dataset.size = tier; else delete el.dataset.size;
