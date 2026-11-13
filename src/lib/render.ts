@@ -14,7 +14,8 @@ import { AUDIO_SCRIPT } from './audio';
 import { isVisible, safeUrl, safeImg, safeAudio, safeFile, CREDENTIAL_KINDS, type Config, type Link, type PageBlock } from './types';
 import css from './page.css?inline';
 
-type Opts = { now?: number; preview?: boolean };
+/** openMenus: Link Menus the editor's preview shows open (the one being edited). */
+type Opts = { now?: number; preview?: boolean; openMenus?: string[] };
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -57,7 +58,7 @@ export const plain = (text: string) => text.replace(LINK, '$1').replace(/\*\*(.+
 /** One renderer for the public page and the editor's live preview.
  * The public page is a single static file: it embeds its own config, so the editor can reopen it,
  * and leaves scheduled links in place for SCHEDULE_SCRIPT to show or hide at visit time. */
-export function renderPage(cfg: Config, { now = Date.now(), preview = false }: Opts = {}): string {
+export function renderPage(cfg: Config, { now = Date.now(), preview = false, openMenus = [] }: Opts = {}): string {
   const photo = safeImg(cfg.profile.photo);
   const backgroundImage = cfg.profile.showCover !== false && safeImg(cfg.profile.cover) || photo;
   const photoBg = cfg.look.background === 'photo' && backgroundImage;
@@ -95,6 +96,7 @@ export function renderPage(cfg: Config, { now = Date.now(), preview = false }: O
     if (block.type === 'post') blocks.push(postCard(block, data));
     if (block.type === 'voice' && safeAudio(block.audio)) blocks.push(voiceBlock(block, data));
     if (block.type === 'file' && safeFile(block.file)) blocks.push(fileCard(block, data, preview));
+    if (block.type === 'menu') blocks.push(linkMenu(block, data, block.open || openMenus.includes(block.id)));
   }
   flush();
   return `<!doctype html>
@@ -119,13 +121,14 @@ ${cfg.look.disco ? `<div class="disco-lights" aria-hidden="true"><i></i><i></i><
 <div class="stack">${blocks.join('\n')}</div>
 </main>
 ${preview ? '' : INTRO_SCRIPT}
-${revealScript(cfg.look.reveal, cfg.look.revealDuration, cfg.look.revealRepeat)}
+${revealScript(cfg.look.reveal, cfg.look.revealDuration, cfg.look.revealRepeat, preview)}
 ${MEDIA_SCRIPT}
 ${FIT_SCRIPT}
 ${FLOAT_SCRIPT}
 ${cfg.look.music || cfg.look.disco || cfg.blocks.some((b) => b.type === 'voice' && !b.hidden) ? AUDIO_SCRIPT : ''}
 ${cfg.blocks.some((b) => b.type === 'voice' && !b.hidden && safeAudio(b.audio)) ? VOICE_SCRIPT : ''}
 ${cfg.blocks.some((b) => b.type === 'file' && !b.hidden && safeFile(b.file)?.startsWith('data:')) ? FILE_SCRIPT : ''}
+${cfg.blocks.some((b) => b.type === 'menu' && !b.hidden) ? MENU_SCRIPT : ''}
 ${cfg.look.music || cfg.look.disco ? MUSIC_SCRIPT : ''}
 ${cfg.look.disco ? DISCO_SCRIPT : ''}
 ${preview ? PREVIEW_SCRIPT
@@ -269,6 +272,16 @@ function fileCard(block: PageBlock, data: string, preview: boolean) {
   return `<a class="file-card" href="${embedded ? '#' : esc(src)}"${embedded ? ` data-file-id="${esc(block.id)}"${preview ? ` data-src="${esc(src)}"` : ''}` : ' target="_blank" rel="noopener"'} ${data}>`
     + `<span class="file-icon">${icon('doc', 22)}<b>PDF</b></span><span class="file-text"><span class="file-title">${esc(block.title?.trim() || block.fileName || 'Document')}</span><span class="file-meta">${esc(meta)}</span></span>`
     + `<span class="file-open">Open ${icon('arrow', 14)}</span></a>`;
+}
+/** A Link Menu: a button that opens down into its links (like a folder of links: Videos, Projects, Shop…).
+ * Menus share a name, so opening one closes the others and the page stays short. */
+function linkMenu(block: PageBlock, data: string, open: boolean) {
+  const items = (block.items ?? []).filter((e) => e.title.trim() && safeUrl(e.url));
+  const title = block.title?.trim() || 'More links';
+  return `<details class="link-menu" name="yourlinki-menu"${open ? ' open' : ''} ${data}>`
+    + `<summary class="row-link glass menu-toggle"><span>${esc(title)}</span><i class="menu-chevron">${icon('down', 18)}</i></summary>`
+    + `<div class="menu-links">${items.length ? items.map((e, i) => `<a class="row-link glass" href="${esc(safeUrl(e.url))}" rel="noopener" data-stat="go:${esc(e.id)}" style="--n:${Math.min(i, 12)}"><span>${esc(e.title)}</span>${icon('arrow', 16)}</a>`).join('')
+      : '<p class="menu-empty">No links yet</p>'}</div></details>`;
 }
 const spaceBlock = (block: PageBlock) => `<div class="space" aria-hidden="true" ${blockAttributes(block)}></div>`;
 
@@ -506,6 +519,20 @@ const DISCO_SCRIPT = `<script>
 })();
 </script>`;
 
+/** Link Menus: while the layout is being edited a tap selects the menu instead of opening it; free items placed on the
+ * page move along when a menu opens or closes. */
+const MENU_SCRIPT = `<script>
+document.addEventListener('click', (e) => {
+  const toggle = e.target.closest && e.target.closest('.link-menu > summary');
+  if (toggle && document.documentElement.classList.contains('canvas-editing')) e.preventDefault();
+}, true);
+document.addEventListener('toggle', (e) => {
+  if (!e.target.classList || !e.target.classList.contains('link-menu')) return;
+  const again = () => window.yourlinkiFloat && window.yourlinkiFloat();
+  again(); setTimeout(again, 200); setTimeout(again, 450);
+}, true);
+</script>`;
+
 /** Opens an uploaded PDF: the file becomes a temporary address the browser's PDF viewer can show. */
 const FILE_SCRIPT = `<script>
 document.addEventListener('click', (e) => {
@@ -535,7 +562,7 @@ const statsScript = (endpoint: string) => `<script>
     if (!el) return;
     const social = el.dataset.socialId;
     const block = el.closest('[data-block-id]');
-    const id = social ? 'social:' + social : el.dataset.youtube ? 'play:' + (block ? block.dataset.blockId : '') : block && block.dataset.blockId;
+    const id = el.dataset.stat ? el.dataset.stat : social ? 'social:' + social : el.dataset.youtube ? 'play:' + (block ? block.dataset.blockId : '') : block && block.dataset.blockId;
     if (id) send(id);
   }, true);
 })();

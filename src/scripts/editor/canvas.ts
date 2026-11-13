@@ -165,10 +165,15 @@ export class VisualCanvas {
     doc.addEventListener('click', click, true);
 
     doc.addEventListener('keydown', key);
-    const update = () => this.position();
+    let positionFrame = 0;
+    const update = () => {
+      if (!this.enabled || positionFrame) return;
+      positionFrame = win.requestAnimationFrame(() => { positionFrame = 0; if (this.enabled) this.position(); });
+    };
     win.addEventListener('scroll', update, { passive: true }); win.addEventListener('resize', update);
     const observer = new ResizeObserver(update); observer.observe(doc.querySelector('.stack')!);
     this.dispose = () => {
+      win.cancelAnimationFrame(positionFrame);
       this.stopGesture?.(); socialStarts.forEach((remove) => remove()); observer.disconnect(); doc.removeEventListener('pointerdown', press); doc.removeEventListener('contextmenu', menu); doc.removeEventListener('click', click, true); doc.removeEventListener('keydown', key);
       win.removeEventListener('scroll', update); win.removeEventListener('resize', update); ui.remove(); style.remove(); this.guides?.remove(); this.guides = null;
     };
@@ -678,7 +683,7 @@ export class VisualCanvas {
     if (this.selection?.part === 'photo') return 'Photo or logo';
     if (this.selection?.part === 'name') return 'Name';
     if (b.type === 'link') return cfg.links.find((l) => l.id === b.linkId)?.title || 'Link';
-    return (b.title && plain(b.title).split('\n')[0]) || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials', shape: 'Shape', space: 'Empty space', voice: 'Voice message', file: 'PDF' }[b.type]);
+    return (b.title && plain(b.title).split('\n')[0]) || ((b.part ? { social: 'Social icon', highlights: 'Highlight' } as Record<string, string> : {})[b.type] ?? { profile: 'Profile', name: 'Name', bio: 'Bio', highlights: 'Highlights', social: 'Social icons', youtube: 'YouTube video', image: 'Image', post: 'Post preview', text: 'Text', credentials: 'Credentials', shape: 'Shape', space: 'Empty space', voice: 'Voice message', file: 'PDF', menu: 'Link menu' }[b.type]);
   }
   private image() {
     const cfg = this.o.config(), b = this.block();

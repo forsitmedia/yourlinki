@@ -1,11 +1,11 @@
 import { platform } from '../../lib/platforms';
-import { MUSIC_STYLES, safeImg, withScheme, NAME_ALIGN, CREDENTIAL_KINDS, type Credential, type PageBlock, type TextStyle } from '../../lib/types';
+import { MUSIC_STYLES, safeImg, withScheme, NAME_ALIGN, CREDENTIAL_KINDS, type Credential, type MenuItem, type PageBlock, type TextStyle } from '../../lib/types';
 import { separateName, hasSeparateName } from '../../lib/layout';
 import { imageFrameStyle } from '../../lib/image-frame';
 import { moveSocial, socialKey } from '../../lib/social-order';
 import { sortable } from './reorder';
 import { socialGlyph } from './social-glyph';
-import { state, changed, onChange, uid, placeBlock, addAt, type AddAt } from './state';
+import { state, changed, onChange, uid, placeBlock, addAt, openMenus, type AddAt } from './state';
 import { pickImage } from './upload';
 import { adjustImage } from './image-editor';
 import { BOLD, LINK } from '../../lib/render';
@@ -28,6 +28,7 @@ export function editPageBlock(id: string) {
   if (block.type === 'shape') return shapeSheet(block);
   if (block.type === 'voice') return voiceSheet(block);
   if (block.type === 'file') return fileSheet(block);
+  if (block.type === 'menu') return menuSheet(block);
   if (block.type === 'space') { if (confirm('Remove this empty space?')) { cfg.blocks = cfg.blocks.filter((b) => b.id !== id); changed(true); } return; }
   if (block.type === 'name') return editPageBlock(cfg.blocks.find((b) => b.type === 'profile')!.id); // the name is edited with the profile
   const titles: Record<string, string> = { profile: 'Profile', bio: 'Bio', social: 'Social Icons', highlights: 'Highlights' };
@@ -432,6 +433,48 @@ export function fileSheet(block: PageBlock, isNew = false) {
   } });
 }
 
+export function addMenu() {
+  const block: PageBlock = { id: `menu:${uid()}`, type: 'menu', title: '', items: [{ id: uid(), title: '', url: '' }] };
+  placeBlock(block); changed(true);
+  menuSheet(block, true);
+}
+
+/** A Link Menu: one button that opens down into a list of links, to sort links by topic (Videos, Projects, Shop…). */
+export function menuSheet(block: PageBlock, isNew = false) {
+  const cfg = state.cfg;
+  let deleted = false;
+  block.items ??= [];
+  const items = block.items;
+  const body = h('div');
+  openMenus.add(block.id); changed(); // the preview shows it open while it is being edited
+  const itemGroup = (e: MenuItem, i: number) => group({ header: `Link ${i + 1}` },
+    inputRow('Title', e.title, (v) => { e.title = v; changed(); }, { max: 120, placeholder: i === 0 ? 'My latest project' : 'Title' }),
+    inputRow('URL', e.url, (v) => { e.url = withScheme(v); changed(); }, { type: 'url', placeholder: 'yourwebsite.com' }),
+    h('div', { class: 'row cred-entry-actions' },
+      h('button', { type: 'button', class: 'btn-text', disabled: i === 0, onclick: () => { items.splice(i - 1, 0, items.splice(i, 1)[0]); changed(); draw(); } }, 'Move up'),
+      h('button', { type: 'button', class: 'btn-text', disabled: i === items.length - 1, onclick: () => { items.splice(i + 1, 0, items.splice(i, 1)[0]); changed(); draw(); } }, 'Move down'),
+      h('button', { type: 'button', class: 'btn-text red', onclick: () => { items.splice(i, 1); changed(); draw(); } }, 'Remove')));
+  const draw = () => body.replaceChildren(
+    group({ footer: 'The button people tap. It opens down into the links below, like a folder: Videos, Projects, Shop…' },
+      inputRow('Button', block.title ?? '', (v) => { block.title = v; changed(); }, { max: 120, placeholder: 'My videos' })),
+    ...items.map(itemGroup),
+    items.length < 30 ? group({}, actionRow('Add Link', () => { items.push({ id: uid(), title: '', url: '' }); changed(); draw(); })) : document.createDocumentFragment(),
+    group({ footer: 'Opening a menu closes the others, so the page stays short.' },
+      switchRow('Open when the page loads', !!block.open, (v) => { block.open = v || undefined; changed(); }),
+      switchRow('Show on page', !block.hidden, (v) => { block.hidden = !v; changed(); })),
+    group({}, dangerRow('Delete Menu', () => {
+      if (!isNew && !confirm('Delete this menu and its links?')) return;
+      deleted = true; cfg.blocks = cfg.blocks.filter((b) => b.id !== block.id); close();
+    })));
+  draw();
+  const close = sheet(isNew ? 'New Link Menu' : 'Link Menu', () => [body], { onClose: () => {
+    openMenus.delete(block.id);
+    block.items = items.filter((e) => e.title.trim() || e.url.trim());
+    if (!deleted && isNew && !block.title?.trim() && !block.items.length) state.cfg.blocks = state.cfg.blocks.filter((b) => b.id !== block.id);
+    changed(true);
+  } });
+}
+
 export function addVoice() {
   const block: PageBlock = { id: `voice:${uid()}`, type: 'voice', title: 'A message from me' };
   placeBlock(block); changed(true);
@@ -552,6 +595,7 @@ export function addItemMenu() {
         const link = { id: uid(), title: '', url: '' };
         state.cfg.links.push(link); placeBlock({ id: `link:${link.id}`, type: 'link', linkId: link.id }); changed(true); linkSheet(link, true);
       } }),
+      navRow({ lead: svg('menu'), title: 'Link Menu', subtitle: 'A button that opens into a list of links: Videos, Projects…', onClick: () => { close(); addMenu(); } }),
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
       navRow({ lead: svg('doc'), title: 'PDF', subtitle: 'A menu, CV, price list or guide people can open', onClick: () => { close(); addFile(); } }),
       navRow({ lead: svg('mic'), title: 'Voice Message', subtitle: 'Record a welcome in your own voice', onClick: () => { close(); addVoice(); } }),

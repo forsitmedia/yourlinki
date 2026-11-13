@@ -1,6 +1,6 @@
 /** Editor shell, visual layout canvas and publishing. */
 import { renderPage } from '../../lib/render';
-import { state, onChange, isDirty, changed, undo, redo, canUndo, canRedo, setAnchor } from './state';
+import { state, onChange, isDirty, changed, undo, redo, canUndo, canRedo, setAnchor, openMenus } from './state';
 import { pageTab } from './page-tab';
 import { editPageBlock, editSocialIcon, addItemMenu, musicSheet } from './block-editor';
 import { settingsTab } from './settings-tab';
@@ -124,8 +124,9 @@ function updatePreview() {
     frame.remove();
     next.className = '';
     frame = next; incoming = null;
+    next.contentWindow?.dispatchEvent(new Event('yourlinki-preview-ready'));
   };
-  next.srcdoc = renderPage(state.cfg, { preview: true });
+  next.srcdoc = renderPage(state.cfg, { preview: true, openMenus: [...openMenus] });
   surface.append(next);
 }
 /** Publish stays available (a download may never have been uploaded); a dot shows unpublished changes. */

@@ -161,3 +161,6 @@ export function placeBlock(block: PageBlock) {
   if (where === 'top') { const head = Math.max(blocks.findIndex((b) => b.type === 'profile'), blocks.findIndex((b) => b.type === 'name')); at = head + 1; }
   if (at <= 0 && where !== 'top') blocks.push(block); else blocks.splice(Math.max(0, at), 0, block);
 }
+
+/** Link Menus the preview shows open while their sheet is open, so the creator sees the links they add. */
+export const openMenus = new Set<string>();

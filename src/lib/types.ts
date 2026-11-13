@@ -22,6 +22,8 @@ export type Link = {
   expireAt?: string;
 };
 export type Social = { id?: string; platform: string; url: string };
+/** One link inside a Link Menu (a button that opens down into a list of links). */
+export type MenuItem = { id: string; title: string; url: string };
 export const CREDENTIAL_KINDS = [
   { value: 'degree', label: 'Degree', icon: 'cap' },
   { value: 'certificate', label: 'Certificate', icon: 'seal' },
@@ -44,7 +46,7 @@ export type PageBlock = {
   reveal?: RevealEffect;
   revealDelay?: number;
   design?: BlockDesign;
-  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space' | 'voice' | 'file';
+  type: 'profile' | 'name' | 'bio' | 'highlights' | 'social' | 'link' | 'youtube' | 'image' | 'post' | 'text' | 'credentials' | 'shape' | 'space' | 'voice' | 'file' | 'menu';
   /** Shape items: which drawing, its colors, outline, rotation and motion. */
   deco?: { shape: string; color: string; outline?: boolean; rotate?: number; motion?: ShapeMotion; from?: string; to?: string };
   /** Social icons: glyph color ('brand' or #hex) and the circle behind each icon. */
@@ -82,6 +84,9 @@ export type PageBlock = {
   wordSpacing?: number;
   /** How heavy this item's text is (300 light to 700 bold); missing = as the template designs it. */
   weight?: 300 | 400 | 500 | 600 | 700;
+  /** Link Menu: the button's links, and whether it is already open when the page loads. */
+  items?: MenuItem[];
+  open?: boolean;
   /** PDF: the file (embedded as a data URL, or a link) with its original name and size in bytes. */
   file?: string;
   fileName?: string;
@@ -262,6 +267,10 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
     } else if (b.type === 'file') {
       add({ id, type: 'file', ...layout, hidden: !!b.hidden, title: typeof b.title === 'string' ? b.title.slice(0, 120) : '',
         ...(safeFile(b.file) ? { file: b.file } : {}), ...(typeof b.fileName === 'string' ? { fileName: b.fileName.slice(0, 120) } : {}), ...(bounded(b.fileSize, 0, 1e9) ? { fileSize: Math.round(b.fileSize) } : {}) });
+    } else if (b.type === 'menu') {
+      const items: MenuItem[] = (Array.isArray(b.items) ? b.items : []).filter((e: any) => e && typeof e === 'object').slice(0, 30).map((e: any, i: number) => ({
+        id: typeof e.id === 'string' && /^[\w-]{1,24}$/.test(e.id) ? e.id : `m${i}`, title: typeof e.title === 'string' ? e.title.slice(0, 120) : '', url: typeof e.url === 'string' ? e.url.slice(0, 1000) : '' }));
+      add({ id, type: 'menu', ...layout, hidden: !!b.hidden, title: typeof b.title === 'string' ? b.title.slice(0, 120) : '', items, ...(b.open === true ? { open: true } : {}) });
     } else if (b.type === 'voice') {
       const peaks = Array.isArray(b.peaks) ? b.peaks.slice(0, 64).map((v: unknown) => Math.round((bounded(v, 0, 1) ?? 0) * 100) / 100) : undefined;
       add({ id, type: 'voice', ...layout, hidden: !!b.hidden, title: typeof b.title === 'string' ? b.title.slice(0, 80) : '',
