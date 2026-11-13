@@ -2,7 +2,7 @@
 import { renderPage } from '../../lib/render';
 import { state, onChange, isDirty, changed, undo, redo, canUndo, canRedo, setAnchor } from './state';
 import { pageTab } from './page-tab';
-import { editPageBlock, editSocialIcon, addItemMenu } from './block-editor';
+import { editPageBlock, editSocialIcon, addItemMenu, musicSheet } from './block-editor';
 import { settingsTab } from './settings-tab';
 import { insightsTab } from './insights-tab';
 import { openPublish } from './publish';
@@ -63,6 +63,7 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault(); key === 'y' || e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
 });
 addEventListener('yourlinki-clean-layout', () => canvas.cleanLayout());
+addEventListener('yourlinki-open-music', () => musicSheet());
 const surface = h('div', { class: 'preview-surface' }, frame);
 const deviceArea = h('div', { class: 'device-area' }, surface);
 const stage = h('div', { class: 'stage' },

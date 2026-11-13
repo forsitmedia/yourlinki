@@ -97,7 +97,10 @@ export class VisualCanvas {
     const click = (e: MouseEvent) => {
       if (!this.enabled) return;
       const target = e.target as HTMLElement;
-      if (!target?.closest || target.closest('.canvas-ui, .music, .disco-btn')) return; // music and disco buttons work while editing too
+      if (!target?.closest || target.closest('.canvas-ui')) return;
+      // Music and disco buttons: a double-click opens their settings, so a tap doesn't play while editing
+      // (the settings sheet still plays them through untrusted, scripted clicks).
+      if (target.closest('.page-tools')) { if (e.isTrusted) { e.preventDefault(); e.stopImmediatePropagation(); } return; }
       e.preventDefault(); e.stopImmediatePropagation();
       if (this.busy || this.suppressClick) { this.suppressClick = false; return; }
       const block = target.closest<HTMLElement>('[data-block-id]');
@@ -122,12 +125,14 @@ export class VisualCanvas {
     doc.addEventListener('pointerdown', press);
     doc.addEventListener('contextmenu', menu);
     doc.addEventListener('click', click, true);
+    const openTools = (e: MouseEvent) => { if ((e.target as HTMLElement).closest?.('.page-tools')) { e.preventDefault(); dispatchEvent(new Event('yourlinki-open-music')); } };
+    doc.addEventListener('dblclick', openTools);
     doc.addEventListener('keydown', key);
     const update = () => this.position();
     win.addEventListener('scroll', update, { passive: true }); win.addEventListener('resize', update);
     const observer = new ResizeObserver(update); observer.observe(doc.querySelector('.stack')!);
     this.dispose = () => {
-      this.stopGesture?.(); socialStarts.forEach((remove) => remove()); observer.disconnect(); doc.removeEventListener('pointerdown', press); doc.removeEventListener('contextmenu', menu); doc.removeEventListener('click', click, true); doc.removeEventListener('keydown', key);
+      this.stopGesture?.(); socialStarts.forEach((remove) => remove()); observer.disconnect(); doc.removeEventListener('pointerdown', press); doc.removeEventListener('contextmenu', menu); doc.removeEventListener('click', click, true); doc.removeEventListener('dblclick', openTools); doc.removeEventListener('keydown', key);
       win.removeEventListener('scroll', update); win.removeEventListener('resize', update); ui.remove(); style.remove(); this.guides?.remove(); this.guides = null;
     };
     if (this.pendingNew) {

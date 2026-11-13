@@ -105,8 +105,8 @@ export function pageTab(): HTMLElement {
           if (first && cfg.look.template !== 'photo') layouts.photo ??= current; // pages made before this were arranged in Photo
           const saved = layouts[t.id];
           if (!saved) dispatchEvent(new Event('yourlinki-clean-layout')); // measured while the old template is still shown
-          const { music, disco } = cfg.look;
-          cfg.look = { ...t.look, ...(music ? { music } : {}), ...(disco ? { disco } : {}) };
+          const { music, disco, tools } = cfg.look;
+          cfg.look = { ...t.look, ...(music ? { music } : {}), ...(disco ? { disco } : {}), ...(tools ? { tools } : {}) };
           if (saved) restoreLayout(cfg, saved);
           changed(true);
         } },

@@ -101,7 +101,9 @@ ${themeColorMeta(cfg.look)}
 <title>${esc(cfg.profile.name)}</title>
 <meta name="description" content="${esc(plain(cfg.profile.bio))}">
 <meta property="og:title" content="${esc(cfg.profile.name)}"><meta property="og:description" content="${esc(plain(cfg.profile.bio))}">
-${photo.startsWith('https:') ? `<meta property="og:image" content="${esc(photo)}">` : ''}
+<meta property="og:type" content="website"><meta property="og:url" content="${PAGE_URL}">
+${photo.startsWith('https:') ? `<meta property="og:image" content="${esc(photo)}">`
+  : backgroundImage ? `<meta property="og:image" content="${PAGE_URL}${SHARE_IMAGE}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">` : ''}
 <link rel="icon" href="favicon.ico" sizes="32x32"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">
 ${fontLink([cfg.look.font, ...cfg.blocks.filter((b) => !b.hidden).map((b) => b.font)])}
 <style>${css}${lookColors(cfg.look)}</style>
@@ -109,9 +111,8 @@ ${fontLink([cfg.look.font, ...cfg.blocks.filter((b) => !b.hidden).map((b) => b.f
 <div class="backdrop">${photoBg ? `<img src="${esc(backgroundImage)}" alt="">` : ''}</div>
 <main class="page">
 <button class="share glass" aria-label="Share">${icon('share', 18)}</button>
-${cfg.look.music ? `<button class="music glass" type="button" data-music="${esc(cfg.look.music)}" aria-pressed="false" aria-label="Play music" title="Music">${icon('music', 17)}</button>` : ''}
-${cfg.look.disco ? `<button class="disco-btn glass${cfg.look.music ? ' after-music' : ''}" type="button" aria-pressed="false" aria-label="Disco mode" title="Disco mode">${icon('disco', 18)}</button>
-<div class="disco-lights" aria-hidden="true"><i></i><i></i><i></i><span class="disco-ball"></span></div>` : ''}
+${cfg.look.music || cfg.look.disco ? `<div class="page-tools" data-pos="${esc(cfg.look.tools ?? 'top')}">${cfg.look.music ? `<button class="music glass" type="button" data-music="${esc(cfg.look.music)}" aria-pressed="false" aria-label="Play music" title="Music">${icon('music', 17)}</button>` : ''}${cfg.look.disco ? `<button class="disco-btn glass" type="button" aria-pressed="false" aria-label="Disco mode" title="Disco mode">${icon('disco', 18)}</button>` : ''}</div>` : ''}
+${cfg.look.disco ? `<div class="disco-lights" aria-hidden="true"><i></i><i></i><i></i><span class="disco-ball"></span></div>` : ''}
 <div class="stack">${blocks.join('\n')}</div>
 </main>
 ${preview ? '' : INTRO_SCRIPT}
@@ -379,6 +380,12 @@ const INTRO_SCRIPT = `<script>
 document.querySelectorAll('.stack [data-block-id]').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 10)));
 </script>`;
 
+/** Link previews (WhatsApp, iMessage…) need full addresses. The page doesn't know its own address when it is made, so it
+ * carries this marker and publishing fills it in (the worker, or the editor for a downloaded file). SHARE_IMAGE is
+ * published next to the page: a 1200×630 picture made from the cover or photo, because previews can't read embedded images. */
+export const PAGE_URL = '__YOURLINKI_PAGE__/';
+export const SHARE_IMAGE = 'share.jpg';
+
 /** Where the published page keeps its config for the editor. */
 export const CONFIG_ID = 'yourlinki-config';
 
@@ -392,9 +399,10 @@ document.querySelectorAll('[data-show-from],[data-show-until]').forEach((el) => 
 
 const SHARE_SCRIPT = `<script>
 document.querySelector('.share').addEventListener('click', async () => {
-  const url = location.href;
+  // The page's clean address (no ?src=… or #…), so the preview shows up wherever it is shared.
+  const url = location.origin + location.pathname.replace(/index\.html$/, '');
   try {
-    if (navigator.share) return await navigator.share({ title: document.title, url });
+    if (navigator.share) return await navigator.share({ title: document.title, text: document.title, url });
     await navigator.clipboard.writeText(url);
     const t = Object.assign(document.createElement('div'), { className: 'toast', textContent: 'Link copied' });
     document.body.append(t); setTimeout(() => t.remove(), 1800);

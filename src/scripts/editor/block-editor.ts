@@ -468,8 +468,11 @@ export function musicSheet() {
           if (value) playChosen();
         } })),
       look.music ? actionRow(playing() ? '❚❚ Pause' : '▶ Resume', toggle) : null),
+    look.music || look.disco ? group({ header: 'Buttons', footer: 'Where the ♪ and 🪩 buttons sit. Floating keeps them at the bottom of the screen while visitors scroll.' },
+      h('div', { class: 'row stacked' }, segmented([{ value: 'top', label: 'Top right' }, { value: 'left', label: 'Top left' }, { value: 'bottom', label: 'Floating' }], look.tools ?? 'top',
+        (v) => { look.tools = v === 'top' ? undefined : v as 'left' | 'bottom'; changed(true); }))) : document.createDocumentFragment(),
     group({ header: 'Disco mode', footer: 'A 🪩 button: lights sweep across the page, items dance and a disco club track plays. Everything still works; tap again to stop.' },
-      switchRow('Disco button', !!look.disco, (v) => { look.disco = v || undefined; changed(true); }),
+      switchRow('Disco button', !!look.disco, (v) => { look.disco = v || undefined; changed(true); setTimeout(draw, 250); }),
       look.disco ? actionRow('Try it', () => { const b = pageButton('.disco-btn'); if (b) b.click(); else setTimeout(() => pageButton('.disco-btn')?.click(), 400); }) : null));
   draw();
   sheet('Music & Disco', () => [body], { onClose: () => { if (playing()) pageButton('.music')?.click(); if (pageButton('html.disco .disco-btn')) pageButton('.disco-btn')?.click(); changed(true); } });

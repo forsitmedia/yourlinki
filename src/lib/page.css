@@ -619,14 +619,18 @@ html.canvas-editing .space { pointer-events: auto; }
 .voice audio { display: none; }
 
 /* Music button, next to Share: plays music made in the browser, only when tapped. */
-.music { position: absolute; top: 16px; right: 60px; z-index: 3; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }
+/* Music and disco buttons sit together: top right next to Share (default), top left, or floating at the bottom of the screen. */
+.page-tools { position: absolute; top: 16px; right: 60px; z-index: 3; display: flex; flex-direction: row-reverse; gap: 8px; }
+.page-tools[data-pos="left"] { right: auto; left: 16px; flex-direction: row; }
+.page-tools[data-pos="bottom"] { position: fixed; top: auto; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 25; flex-direction: column-reverse; }
+.page-tools[data-pos="bottom"] button { width: 44px; height: 44px; box-shadow: 0 6px 20px #0004; }
+.music { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }
 .music.on { background: var(--accent); color: var(--on-accent); animation: music-beat 1.4s ease-in-out infinite; }
 @keyframes music-beat { 50% { transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .music.on { animation: none; } }
 
 /* Disco mode (the 🪩 button). Everything keeps working: the lights let taps through and items only sway a little. */
-.disco-btn { position: absolute; top: 16px; right: 60px; z-index: 3; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }
-.disco-btn.after-music { right: 104px; }
+.disco-btn { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }
 .disco-btn.on { background: conic-gradient(from 0deg, #ff2d92, #ffd60a, #30d158, #0a84ff, #bf5af2, #ff2d92); color: #fff; animation: disco-spin 2s linear infinite; }
 .disco-lights { display: none; position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; }
 html.disco .disco-lights { display: block; }

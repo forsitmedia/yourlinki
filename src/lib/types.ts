@@ -112,6 +112,8 @@ export type Look = {
   music?: MusicStyle;
   /** Shows the 🪩 button: visitors can switch the page into disco mode (lights, swaying items, music if set). */
   disco?: boolean;
+  /** Where the music and disco buttons sit: 'top' (next to Share), 'left' (top left) or 'bottom' (floating). */
+  tools?: 'top' | 'left' | 'bottom';
 };
 /** One template's arrangement: item order, each item's placement, its empty spaces, and the page spacing. */
 export type TemplateLayout = {
@@ -160,6 +162,7 @@ export function normalize(raw: any = {}): Config {
   if ('margin' in look) look.margin = bounded(look.margin, 0, 60);
   if (!MUSIC_STYLES.includes(look.music)) delete look.music;
   if (look.disco !== true) delete look.disco;
+  if (!['left', 'bottom'].includes(look.tools)) delete look.tools;
   return {
     onboarded: !!c.onboarded,
     profile: { name: '', handle: '', bio: '', photo: null, cover: null, ...c.profile,

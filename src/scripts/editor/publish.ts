@@ -1,6 +1,9 @@
 /** Publishing. Signed in to the creator's worker: one press puts the page online (the worker commits it to GitHub).
  * Without a worker: download index.html and upload it to the GitHub copy by hand. */
-import { pageFile, markPublished } from './state';
+import { pageFile, markPublished, state } from './state';
+import { PAGE_URL } from '../../lib/render';
+import { safeImg } from '../../lib/types';
+import { normalizeImageFrame } from '../../lib/image-frame';
 import { api, signedIn, signInForm } from './account';
 import { h, group, inputRow, navRow, sheet, svg, toast } from './ui';
 
@@ -34,13 +37,36 @@ export function openPublish() {
   });
 }
 
+/** The picture link previews show (WhatsApp, iMessage…): the cover or photo, framed as on the page, as a 1200×630 JPEG.
+ * Only for embedded images; a photo with a web address is used as it is. */
+async function shareImage(): Promise<string | null> {
+  const p = state.cfg.profile, cover = p.showCover !== false ? safeImg(p.cover) : '';
+  const src = cover || safeImg(p.photo);
+  if (!src.startsWith('data:')) return null;
+  try {
+    const img = new Image(); img.src = src; await img.decode();
+    const f = normalizeImageFrame(cover ? p.coverFrame : p.photoFrame), W = 1200, H = 630;
+    const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H }), g = canvas.getContext('2d')!;
+    const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight) * f.zoom, w = img.naturalWidth * scale, ht = img.naturalHeight * scale;
+    g.fillStyle = '#111'; g.fillRect(0, 0, W, H);
+    g.drawImage(img, (W - w) * f.x / 100, (H - ht) * f.y / 100, w, ht);
+    return canvas.toDataURL('image/jpeg', .85).split(',')[1];
+  } catch { return null; }
+}
+
 async function publishNow(body: HTMLElement) {
   body.replaceChildren(h('div', { class: 'publish-status' }, h('span', { class: 'spinner' }), h('p', {}, 'Publishing…')));
   const html = pageFile();
   let res: Response, data: any = {};
   try {
-    res = await api('/publish', { method: 'POST', headers: { 'content-type': 'text/html' }, body: html });
+    // The worker fills in the page's address and publishes the preview picture next to the page.
+    res = await api('/publish', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ html, image: await shareImage() }) });
     data = await res.json().catch(() => ({}));
+    if (res.status === 400) { // a worker from before link previews: send the page alone, without the address placeholders
+      const plainHtml = html.replace(/<meta[^>]*__YOURLINKI_PAGE__[^>]*>/g, '').replace(/<meta property="og:image:(width|height)"[^>]*>|<meta name="twitter:card"[^>]*>/g, '');
+      res = await api('/publish', { method: 'POST', headers: { 'content-type': 'text/html' }, body: plainHtml });
+      data = await res.json().catch(() => ({}));
+    }
   } catch {
     return failed(body, 'Could not reach your yourlinki worker. Check your internet connection.');
   }
@@ -93,7 +119,7 @@ function connectGithub(body: HTMLElement, repo: string, expired: boolean): HTMLE
 /** The manual way, for pages without a worker. */
 export function openDownload() {
   const repo = githubRepo();
-  const html = pageFile();
+  const html = pageFile().split(PAGE_URL).join(pageUrl());
   const mb = new Blob([html]).size / 1_000_000;
 
   const download = () => {
