@@ -41,6 +41,7 @@ export class VisualCanvas {
   private guides: Guides | null = null;
   private freeDragging = false;
   private toolTap = 0;
+  private clip = '';
   /** Free move: dragging an item places it anywhere (other items stay put) instead of changing the order. Shift does the same for one drag. */
   private freeMode = (() => { try { return localStorage.getItem('yourlinki-free-move') === '1'; } catch { return false; } })();
   constructor(private o: Options) { this.history = new LayoutHistory(o.config); }
@@ -124,10 +125,12 @@ export class VisualCanvas {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); this.o.save(); return; }
       // Undo works in the page too, with or without a selection.
       if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase())) { e.preventDefault(); e.key.toLowerCase() === 'y' || e.shiftKey ? this.redo() : this.undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { if (this.paste()) e.preventDefault(); return; }
       if (!this.enabled || !this.selection) return;
       if (e.key === 'Escape') { e.preventDefault(); if (this.busy) this.stopGesture?.(); else this.select(null); }
       if (this.busy) return;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.deleteSelection(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !this.doc?.getSelection()?.toString()) { if (this.copySelection()) e.preventDefault(); return; }
       if (this.selection?.socialId && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); this.nudgeSocial(e.key === 'ArrowLeft' ? -1 : 1); }
     };
     doc.addEventListener('pointerdown', press);
@@ -168,6 +171,34 @@ export class VisualCanvas {
     else if (this.selection) this.o.edit(this.selection.id);
   }
   /** Delete key: removes the selected item. The profile, bio, highlights and social row are hidden instead (Show on page brings them back). */
+  /** Copy (Cmd/Ctrl+C): keeps the selected item, as it is now, to paste as many times as wanted. */
+  copySelection() {
+    const b = this.block(); if (!this.enabled || this.busy || !b || this.selection?.socialId || this.selection?.part) return false;
+    if (['profile', 'name', 'bio', 'highlights', 'social'].includes(b.type)) { toast('This item is one of a kind, so it can\'t be copied.'); return true; }
+    const cfg = this.o.config(), link = b.type === 'link' ? cfg.links.find((l) => l.id === b.linkId) : undefined;
+    this.clip = JSON.stringify({ block: b, link });
+    try { localStorage.setItem('yourlinki-clip', this.clip); } catch {}
+    toast('Copied. Press ⌘V / Ctrl+V to paste.');
+    return true;
+  }
+  /** Paste (Cmd/Ctrl+V): a copy goes right after the selected item (or at the end) and gets selected. */
+  paste() {
+    if (!this.enabled || this.busy) return false;
+    let clip = this.clip; if (!clip) { try { clip = localStorage.getItem('yourlinki-clip') ?? ''; } catch {} }
+    if (!clip) return false;
+    const { block, link } = JSON.parse(clip) as { block: PageBlock; link?: Config['links'][number] };
+    const key = Math.random().toString(36).slice(2, 8);
+    const copy: PageBlock = { ...structuredClone(block), id: `${block.type}:${key}` };
+    if (copy.float) copy.float = { ...copy.float, y: copy.float.y + 24, ...(copy.float.a ? {} : { x: copy.float.x + 4 }) }; // offset, so it is seen
+    this.action(() => {
+      const cfg = this.o.config();
+      if (link) { const l = { ...structuredClone(link), id: key }; cfg.links.push(l); copy.linkId = l.id; copy.id = `link:${key}`; }
+      const at = cfg.blocks.findIndex((x) => x.id === this.selection?.id);
+      cfg.blocks.splice(at < 0 ? cfg.blocks.length : at + 1, 0, copy);
+    });
+    this.select({ id: copy.id });
+    return true;
+  }
   deleteSelection() {
     const b = this.block(); if (!b || this.busy) return;
     const cfg = this.o.config();

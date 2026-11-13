@@ -59,6 +59,11 @@ document.addEventListener('keydown', (e) => {
   const typing = (e.target as HTMLElement)?.closest?.('textarea, [contenteditable], input:not([type="range"], [type="checkbox"], [type="radio"], [type="color"], [type="button"])');
   if (!typing && (e.key === 'Delete' || e.key === 'Backspace') && !document.querySelector('.sheet')) { e.preventDefault(); canvas.deleteSelection(); refreshHistory(); return; }
   const key = e.key.toLowerCase();
+  // Copy and paste items (text being typed or selected keeps the normal copy and paste).
+  if (!typing && (e.metaKey || e.ctrlKey) && !document.querySelector('.sheet') && !getSelection()?.toString()) {
+    if (key === 'c' && canvas.copySelection()) { e.preventDefault(); return; }
+    if (key === 'v' && canvas.paste()) { e.preventDefault(); refreshHistory(); return; }
+  }
   if (typing || !(e.metaKey || e.ctrlKey) || (key !== 'z' && key !== 'y')) return;
   e.preventDefault(); key === 'y' || e.shiftKey ? canvas.redo() : canvas.undo(); refreshHistory();
 });
