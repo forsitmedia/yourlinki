@@ -42,6 +42,7 @@ export class VisualCanvas {
   private freeDragging = false;
   private toolTap = 0;
   private clip = '';
+  private pointer: { x: number; y: number } | null = null;
   /** Free move: dragging an item places it anywhere (other items stay put) instead of changing the order. Shift does the same for one drag. */
   private freeMode = (() => { try { return localStorage.getItem('yourlinki-free-move') === '1'; } catch { return false; } })();
   constructor(private o: Options) { this.history = new LayoutHistory(o.config); }
@@ -134,6 +135,8 @@ export class VisualCanvas {
       if (this.selection?.socialId && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); this.nudgeSocial(e.key === 'ArrowLeft' ? -1 : 1); }
     };
     doc.addEventListener('pointerdown', press);
+    doc.addEventListener('pointermove', (e) => { this.pointer = { x: e.clientX, y: e.clientY }; });
+    doc.documentElement.addEventListener('pointerleave', () => { this.pointer = null; });
     doc.addEventListener('contextmenu', menu);
     doc.addEventListener('click', click, true);
 
@@ -189,12 +192,21 @@ export class VisualCanvas {
     const { block, link } = JSON.parse(clip) as { block: PageBlock; link?: Config['links'][number] };
     const key = Math.random().toString(36).slice(2, 8);
     const copy: PageBlock = { ...structuredClone(block), id: `${block.type}:${key}` };
-    if (copy.float) copy.float = { ...copy.float, y: copy.float.y + 24, ...(copy.float.a ? {} : { x: copy.float.x + 4 }) }; // offset, so it is seen
+    // Where you are working: the pointer if it is over the page, else the middle of what is on screen.
+    const win = this.doc!.defaultView!, stack = this.doc!.querySelector<HTMLElement>('.stack')!, box = stack.getBoundingClientRect();
+    const p = this.pointer && this.pointer.y >= 0 && this.pointer.y <= win.innerHeight ? this.pointer : { x: win.innerWidth / 2, y: win.innerHeight / 2 };
+    if (copy.float) { // a free item lands right there, centered on the point
+      const original = this.doc!.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(block.id)}"]`);
+      const w = original?.offsetWidth ?? box.width * .4, ht = original?.offsetHeight ?? 60;
+      copy.float = { x: Math.round((p.x - box.left - w / 2) / box.width * 10000) / 100, y: Math.round(p.y - box.top - ht / 2), w: Math.round(w / box.width * 10000) / 100 };
+    }
+    // An item in the column goes after the last item above that point.
+    const above = this.elements().filter((el) => !el.hasAttribute('data-float') && el.getClientRects().length && el.getBoundingClientRect().top + el.offsetHeight / 2 <= p.y).pop()?.dataset.blockId;
     this.action(() => {
       const cfg = this.o.config();
       if (link) { const l = { ...structuredClone(link), id: key }; cfg.links.push(l); copy.linkId = l.id; copy.id = `link:${key}`; }
-      const at = cfg.blocks.findIndex((x) => x.id === this.selection?.id);
-      cfg.blocks.splice(at < 0 ? cfg.blocks.length : at + 1, 0, copy);
+      const at = above ? cfg.blocks.findIndex((x) => x.id === above) + 1 : copy.float ? cfg.blocks.length : cfg.blocks.findIndex((x) => x.type === 'profile') + 1; // never above the photo
+      cfg.blocks.splice(at, 0, copy);
     });
     this.select({ id: copy.id });
     return true;
