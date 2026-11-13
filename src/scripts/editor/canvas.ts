@@ -874,8 +874,7 @@ export class VisualCanvas {
       } }, b.part ? (group === 'social' ? 'Put the icons back in one row' : 'Put the numbers back together') : (group === 'social' ? 'Separate the icons' : 'Separate the numbers'))) : null;
     const textStyle = b.type === 'text' ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Text style'),
       segmented(TEXT_STYLE_OPTIONS, b.textStyle ?? 'body', (v) => this.action(() => { b.textStyle = v; })),
-      h('p', { style: 'margin-top:10px' }, 'Alignment'),
-      segmented(NAME_ALIGN.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), b.textAlign ?? 'center', (v) => this.action(() => { b.textAlign = v; }))) : null;
+      this.alignBar(b)) : null;
     const card = CARD_TYPES.includes(b.type) ? h('div', { class: 'canvas-shapes' }, h('p', {}, 'Card style'),
       cardPicker(b.cardStyle ?? (b.type === 'highlights' || b.type === 'text' || (b.type === 'bio' && el.classList.contains('tagline')) ? 'none' : 'glass'),
         (value) => this.action(() => { b.cardStyle = value; el.dataset.card = value; }))) : null;
@@ -921,6 +920,26 @@ export class VisualCanvas {
       h('div', { class: 'canvas-weight' }, h('p', {}, 'Color'),
         swatches(['', '#ffffff', '#111111', '#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#0a84ff', '#bf5af2', '#ff2d92'], b.textColor ?? '',
           (v) => this.action(() => { b.textColor = v || undefined; }), false)));
+  }
+  /** The alignment toolbar, as in a word processor: lines left, centered, right or justified; and the text at the top,
+   * middle or bottom of its box (when the box is stretched taller than the text). */
+  private alignBar(b: PageBlock) {
+    const line = (widths: number[], x: (w: number) => number) => `<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">${widths.map((w, i) => `<rect x="${x(w)}" y="${3 + i * 4}" width="${w}" height="1.8" rx=".9" fill="currentColor"/>`).join('')}</svg>`;
+    const box = (y: number) => `<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="2" y="1.5" width="14" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="5" y="${y}" width="8" height="1.8" rx=".9" fill="currentColor"/><rect x="5" y="${y + 3.2}" width="6" height="1.8" rx=".9" fill="currentColor"/></svg>`;
+    const button = (label: string, svg: string, on: boolean, act: () => void, disabled = false) => {
+      const el = h('button', { type: 'button', class: 'align-btn' + (on ? ' on' : ''), title: label, 'aria-label': label, 'aria-pressed': String(on), disabled, onclick: () => this.action(act) });
+      el.innerHTML = svg; return el;
+    };
+    const ha = b.textAlign ?? 'center', va = b.vAlign ?? 'middle', tall = !!b.height;
+    return h('div', { class: 'align-bar' },
+      button('Align left', line([12, 8, 11], () => 3), ha === 'left', () => { b.textAlign = 'left'; }),
+      button('Center', line([12, 8, 11], (w) => (18 - w) / 2), ha === 'center', () => { b.textAlign = 'center'; }),
+      button('Align right', line([12, 8, 11], (w) => 15 - w), ha === 'right', () => { b.textAlign = 'right'; }),
+      button('Justify', line([12, 12, 12], () => 3), ha === 'justify', () => { b.textAlign = 'justify'; }),
+      h('span', { class: 'align-sep' }),
+      button(tall ? 'Text at the top' : 'Stretch the box taller first', box(4.5), tall && va === 'top', () => { b.vAlign = 'top'; }, !tall),
+      button(tall ? 'Text in the middle' : 'Stretch the box taller first', box(7.4), tall && va === 'middle', () => { b.vAlign = undefined; }, !tall),
+      button(tall ? 'Text at the bottom' : 'Stretch the box taller first', box(10.5), tall && va === 'bottom', () => { b.vAlign = 'bottom'; }, !tall));
   }
   /** Text weight for this item: lighter or heavier than the template draws it (bold words inside stay bolder). */
   private weightPicker(b: PageBlock) {

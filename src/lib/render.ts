@@ -203,7 +203,7 @@ function bio(cfg: Config, data: string): string {
 function textBlock(block: PageBlock, data: string): string {
   const style = block.textStyle ?? 'body';
   const heading = style === 'title' ? ' role="heading" aria-level="2"' : style === 'subtitle' ? ' role="heading" aria-level="3"' : '';
-  return `<div class="text-block text-${style}"${heading}${block.textAlign ? ` data-align="${block.textAlign}"` : ''} ${data}><div class="fit">${richBlock(block.title!.trim())}</div></div>`;
+  return `<div class="text-block text-${style}"${heading}${block.textAlign ? ` data-align="${block.textAlign}"` : ''}${block.vAlign ? ` data-valign="${block.vAlign}"` : ''} ${data}><div class="fit">${richBlock(block.title!.trim())}</div></div>`;
 }
 
 /** Degrees, certificates, awards and roles: a list, small cards, or a timeline. */

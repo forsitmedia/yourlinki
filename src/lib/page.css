@@ -692,3 +692,8 @@ html.disco :is(.hero img, .avatar img, .profile-cover img), html.disco .backdrop
 }
 @keyframes voice-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
 @media (prefers-reduced-motion: reduce) { .voice-play::after { animation: none !important; } }
+
+/* Text alignment toolbar: justified lines, and text at the top or bottom of a box stretched taller than it. */
+.text-block[data-align="justify"] { text-align: justify; }
+.stack .text-block[data-height][data-valign="top"] { justify-content: flex-start; }
+.stack .text-block[data-height][data-valign="bottom"] { justify-content: flex-end; }

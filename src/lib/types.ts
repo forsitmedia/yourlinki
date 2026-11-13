@@ -53,7 +53,9 @@ export type PageBlock = {
   part?: string;
   /** Text items: how the words look, and where they line up. */
   textStyle?: TextStyle;
-  textAlign?: NameAlign;
+  textAlign?: NameAlign | 'justify';
+  /** Text in a box stretched taller than it: at the top, middle (default) or bottom. */
+  vAlign?: 'top' | 'bottom';
   linkId?: string;
   title?: string;
   description?: string;
@@ -254,7 +256,7 @@ function normalizeBlocks(raw: unknown, links: Link[], pieces: { social: string[]
         ...(/^#[0-9a-f]{6}$/i.test(d.from) ? { from: d.from } : {}), ...(/^#[0-9a-f]{6}$/i.test(d.to) ? { to: d.to } : {}) } });
     } else if (b.type === 'text') {
       add({ id, type: 'text', ...layout, title: typeof b.title === 'string' ? b.title : '', hidden: !!b.hidden,
-        ...(TEXT_STYLES.includes(b.textStyle) ? { textStyle: b.textStyle } : {}), ...(NAME_ALIGN.includes(b.textAlign) ? { textAlign: b.textAlign } : {}) });
+        ...(TEXT_STYLES.includes(b.textStyle) ? { textStyle: b.textStyle } : {}), ...([...NAME_ALIGN, 'justify'].includes(b.textAlign) ? { textAlign: b.textAlign } : {}), ...(['top', 'bottom'].includes(b.vAlign) ? { vAlign: b.vAlign } : {}) });
     } else if (fixed.includes(b.type) || b.type === 'name') {
       if ([...parts].some((k) => k.startsWith(b.type + ':'))) continue; // already shown piece by piece // the name is optional: it exists only when moved apart from the profile
       if (singles.has(b.type)) continue;

@@ -602,3 +602,8 @@ button.row:active { transition-duration: 0s; }
 .image-range output { cursor: text; border-radius: 4px; padding: 0 3px; }
 .image-range output:hover { background: var(--fill); color: var(--blue); }
 .value-edit { width: 52px; padding: 1px 4px; border: 1px solid var(--blue); border-radius: 5px; font: inherit; text-align: right; background: var(--card); color: inherit; }
+.align-bar { display: flex; align-items: center; gap: 3px; margin-top: 8px; padding: 3px; border-radius: 9px; background: var(--fill); }
+.align-btn { flex: 1; display: grid; place-items: center; height: 28px; border-radius: 7px; color: var(--sec); }
+.align-btn.on { background: var(--card); color: var(--blue); box-shadow: 0 1px 3px #0002; }
+.align-btn:disabled { opacity: .35; cursor: default; }
+.align-sep { width: 1px; height: 18px; background: var(--sep); margin: 0 3px; }
