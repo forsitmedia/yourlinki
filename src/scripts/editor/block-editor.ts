@@ -483,6 +483,12 @@ export function musicSheet() {
   sheet('Music & Disco', () => [body], { onClose: () => { if (playing()) pageButton('.music')?.click(); if (pageButton('html.disco .disco-btn')) pageButton('.disco-btn')?.click(); changed(true); } });
 }
 
+/** An empty space chosen by the creator: room between items, invisible to visitors, stretched like any item. */
+export function addSpace() {
+  placeBlock({ id: `space:${uid()}`, type: 'space', height: 48 }); changed(true);
+  toast('Empty space added. Stretch it from its top or bottom dot.');
+}
+
 export function addTextItem() {
   const block: PageBlock = { id: `text:${uid()}`, type: 'text', title: '', textStyle: 'body' };
   placeBlock(block); changed(true);
@@ -502,6 +508,7 @@ export function addItemMenu() {
       navRow({ lead: svg('text'), title: 'Text', subtitle: 'A heading, a note, or a label', onClick: () => { close(); addTextItem(); } }),
       navRow({ lead: svg('mic'), title: 'Voice Message', subtitle: 'Record a welcome in your own voice', onClick: () => { close(); addVoice(); } }),
       navRow({ lead: svg('music'), title: 'Music & Disco', subtitle: state.cfg.look.music ? `${MUSIC_LABELS[state.cfg.look.music]} · a ♪ button visitors tap` : 'Background music and a disco mode button', onClick: () => { close(); musicSheet(); } }),
+      navRow({ lead: svg('minus'), title: 'Empty Space', subtitle: 'Room between items; stretch it from its top or bottom dot', onClick: () => { close(); addSpace(); } }),
       navRow({ lead: svg('star'), title: 'Shape', subtitle: 'Abstract drawings and doodles', onClick: () => { close(); addShape(); } }),
       navRow({ lead: svg('cap'), title: 'Credentials', subtitle: 'Degrees, certificates, awards, work', onClick: () => { close(); addCredentials(); } }),
       navRow({ lead: svg('post'), title: 'Post Preview', subtitle: 'Cover, title and excerpt', onClick: () => { close(); addMediaItem('post'); } }),

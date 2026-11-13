@@ -654,3 +654,7 @@ html.disco :is(.hero img, .avatar img, .profile-cover img), html.disco .backdrop
 @media (prefers-reduced-motion: reduce) {
   html.disco .stack [data-block-id], html.disco .deco svg, .disco-lights i, .disco-ball, .disco-btn.on { animation: none !important; }
 }
+
+/* Text sits on the top layer: above pictures, cards, shapes and other free items (free ones are at 3). */
+.stack .text-block { position: relative; z-index: 6; }
+.stack > .text-block[data-float] { z-index: 7; }
