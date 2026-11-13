@@ -19,7 +19,7 @@ export function githubRepo(): { owner: string; repo: string } | null {
 
 /** The public page: the folder that holds this editor. */
 export const pageUrl = () => new URL('../', location.href).href;
-const shortUrl = () => pageUrl().replace(/^https?:\/\//, '').replace(/\/$/, '');
+const shortUrl = (url = pageUrl()) => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
 const step = (n: number, title: string, text: string, action?: Node) =>
   h('div', { class: 'publish-step' }, h('span', { class: 'publish-num' }, String(n)),
@@ -75,12 +75,14 @@ async function publishNow(body: HTMLElement) {
   if (!res.ok) return failed(body, data.error || 'Publishing failed. Try again in a minute.');
 
   markPublished();
+  // The worker can publish to a different repository from the one hosting this editor.
+  const url = typeof data.url === 'string' && /^https:\/\//i.test(data.url) ? data.url : pageUrl();
   const mb = new Blob([html]).size / 1_000_000;
   body.replaceChildren(
     h('div', { class: 'publish-status done' }, svg('check', 34), h('b', {}, 'Published'), h('p', {}, 'Your page updates in about a minute. Your link stays the same.')),
     group({ header: 'Your link', footer: mb > 5 ? `Your page is ${mb.toFixed(1)} MB. Use fewer or smaller images so it loads quickly.` : 'Put this link in your Instagram bio.' },
-      navRow({ title: shortUrl(), chevron: false, trail: h('span', { class: 'val' }, 'Copy'), onClick: async () => { await navigator.clipboard.writeText(pageUrl()); toast('Link copied'); } }),
-      navRow({ title: 'Open My Page', onClick: () => open(pageUrl(), '_blank') })));
+      navRow({ title: shortUrl(url), chevron: false, trail: h('span', { class: 'val' }, 'Copy'), onClick: async () => { await navigator.clipboard.writeText(url); toast('Link copied'); } }),
+      navRow({ title: 'Open My Page', onClick: () => open(url, '_blank') })));
 }
 
 function failed(body: HTMLElement, message: string) {

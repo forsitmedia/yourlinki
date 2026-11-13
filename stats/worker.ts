@@ -140,7 +140,7 @@ async function publish(request: Request, env: Env) {
     const tree = await github(env, row.value, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: parent.tree.sha, tree: files }) });
     const commit = await github(env, row.value, '/git/commits', { method: 'POST', body: JSON.stringify({ message: 'Update my page', tree: tree.sha, parents: [ref.object.sha] }) });
     await github(env, row.value, '/git/refs/heads/main', { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
-    return json({ ok: true, commit: commit.sha });
+    return json({ ok: true, commit: commit.sha, url: site });
   } catch (e: any) {
     console.error('publish failed', e);
     if (e.status === 401 || e.status === 403 || e.status === 404) return json({ error: 'github', repo: env.GITHUB_REPO, expired: true }, 409);
