@@ -2,13 +2,16 @@ import type { PageBlock } from '../../lib/types';
 /** Editor state: the config being edited, change notifications, the browser draft and publishing. */
 import { normalize, type Config } from '../../lib/types';
 import { CONFIG_ID, renderPage } from '../../lib/render';
+import { discoverPage, editorPageUrl, publishedPageUrl, rememberedPage, rememberPage, requestedPage } from './page-url';
 
 const DRAFT_KEY = 'draft';
 
-/** The page published next to the editor (`../index.html`), or null before the first publish. */
-async function loadPublished(): Promise<Config | null> {
+/** Read the actual public page, including when the publisher uses a different repository. */
+async function loadPublished(page: string): Promise<Config | null> {
   try {
-    const res = await fetch('../index.html', { cache: 'no-cache' });
+    const url = new URL('index.html', page);
+    url.searchParams.set('yourlinki-read', String(Date.now()));
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return null;
     const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
     const json = doc.getElementById(CONFIG_ID)?.textContent;
@@ -33,8 +36,19 @@ function draftStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) =>
   });
 }
 
-const published = await loadPublished();
-const draft = await draftStore<string>('readonly', (s) => s.get(DRAFT_KEY)).then((d) => { try { return d ? normalize(JSON.parse(d)) : null; } catch { return null; } });
+const initialPage = requestedPage() ?? rememberedPage()?.url ?? editorPageUrl();
+const [initialPublished, draft] = await Promise.all([
+  loadPublished(initialPage),
+  draftStore<string>('readonly', (s) => s.get(DRAFT_KEY)).then((d) => { try { return d ? normalize(JSON.parse(d)) : null; } catch { return null; } }),
+]);
+let published = initialPublished;
+const worker = draft?.stats ?? published?.stats ?? rememberedPage()?.worker;
+if (worker) {
+  if (published?.stats === worker) rememberPage(worker, initialPage);
+  await discoverPage(worker);
+  const page = publishedPageUrl(worker);
+  if (page !== initialPage) published = await loadPublished(page);
+}
 
 // A draft started before the worker was connected still publishes and signs in through it.
 if (draft && !draft.stats && published?.stats) draft.stats = published.stats;
@@ -103,11 +117,11 @@ export const canRedo = () => future.length > 0;
 export const isDirty = () => !state.hasPublished || JSON.stringify(state.cfg) !== state.saved;
 
 /** The complete public page, ready to upload as `index.html`. */
-export const pageFile = () => renderPage(state.cfg);
+export const pageFile = (config = state.cfg) => renderPage(config);
 
-/** After the page file is downloaded: treat this version as published and drop the draft. */
-export function markPublished() {
-  state.saved = JSON.stringify(state.cfg);
+/** Save the version actually uploaded; edits made while publishing remain a draft. */
+export function markPublished(snapshot = JSON.stringify(state.cfg)) {
+  state.saved = snapshot;
   state.hasPublished = true;
   persistDraft();
   changed();
@@ -115,7 +129,7 @@ export function markPublished() {
 
 /** Throws away the browser draft and goes back to the published page. */
 export async function discardDraft() {
-  const page = await loadPublished();
+  const page = await loadPublished(publishedPageUrl(state.cfg.stats));
   state.cfg = page ?? normalize({});
   state.saved = JSON.stringify(state.cfg);
   state.hasPublished = !!page;

@@ -3,6 +3,7 @@
  *   POST /hit      {"l"?: item id, "r"?: referrer, "s"?: source}   sent by the published page (sendBeacon)
  *   GET  /stats?days=30                                             editor Insights
  *   POST /publish  {"html", "image"?: base64 JPEG} (or the bare HTML) commits index.html (and share.jpg, the link preview picture)
+ *   GET  /publish?version=…                                        checks that GitHub Pages serves that update
  *   POST /github   {"token": "github_pat_…"}                         stores the GitHub key used by /publish
  * Everything but /hit needs `Authorization: Bearer <STATS_PASSWORD>`.
  *
@@ -104,6 +105,24 @@ async function stats(url: URL, env: Env) {
    It is stored in this worker's database and never sent back out. */
 const MAX_PAGE = 20_000_000;
 
+function pageUrl(env: Env): string | null {
+  if (!env.GITHUB_REPO) return null;
+  const [owner, repo] = env.GITHUB_REPO.split('/');
+  return repo.toLowerCase() === `${owner.toLowerCase()}.github.io` ? `https://${repo.toLowerCase()}/` : `https://${owner.toLowerCase()}.github.io/${repo}/`;
+}
+const publishMarker = (version: string) => `<meta name="yourlinki-publish" content="${version}">`;
+
+async function publishStatus(url: URL, env: Env) {
+  const site = pageUrl(env), version = url.searchParams.get('version') ?? '';
+  if (!site || !/^[0-9a-f-]{36}$/.test(version)) return json({ error: 'Invalid publish version' }, 400);
+  try {
+    const res = await fetch(site, {
+      headers: { 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(10_000),
+    });
+    return json({ ready: res.ok && (await res.text()).includes(publishMarker(version)), url: site });
+  } catch { return json({ ready: false, url: site }); }
+}
+
 async function github(env: Env, token: string, path: string, init: RequestInit = {}) {
   const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}${path}`, { ...init, headers: {
     authorization: 'Bearer ' + token, accept: 'application/vnd.github+json', 'user-agent': 'yourlinki', 'x-github-api-version': '2022-11-28',
@@ -123,10 +142,14 @@ async function publish(request: Request, env: Env) {
     image = typeof body.image === 'string' && body.image.length < 3_000_000 && /^[A-Za-z0-9+/]+=*$/.test(body.image) ? body.image : '';
   } else html = await request.text();
   // Link previews need full addresses: fill in where GitHub Pages serves this repository.
-  const [owner, repo] = env.GITHUB_REPO.split('/');
-  const site = repo.toLowerCase() === `${owner.toLowerCase()}.github.io` ? `https://${repo.toLowerCase()}/` : `https://${owner.toLowerCase()}.github.io/${repo}/`;
+  const site = pageUrl(env)!;
   html = html.split('__YOURLINKI_PAGE__/share.jpg').join(`${site}share.jpg?v=${Date.now().toString(36)}`).split('__YOURLINKI_PAGE__/').join(site);
   if (html.length > MAX_PAGE || !/^<!doctype html>/i.test(html) || !html.includes('id="yourlinki-config"')) return json({ error: 'That is not a yourlinki page' }, 400);
+  const version = crypto.randomUUID();
+  html = html.replace(/<meta name="yourlinki-publish"[^>]*>/g, '');
+  html = /<head(?:\s[^>]*)?>/i.test(html)
+    ? html.replace(/<head(?:\s[^>]*)?>/i, (head) => head + publishMarker(version))
+    : html.replace(/<!doctype html>/i, (doctype) => doctype + publishMarker(version));
   try {
     // One commit that replaces index.html, through the Git data API (handles large pages, unlike the contents API).
     const ref = await github(env, row.value, '/git/ref/heads/main');
@@ -140,7 +163,7 @@ async function publish(request: Request, env: Env) {
     const tree = await github(env, row.value, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: parent.tree.sha, tree: files }) });
     const commit = await github(env, row.value, '/git/commits', { method: 'POST', body: JSON.stringify({ message: 'Update my page', tree: tree.sha, parents: [ref.object.sha] }) });
     await github(env, row.value, '/git/refs/heads/main', { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
-    return json({ ok: true, commit: commit.sha, url: site });
+    return json({ ok: true, commit: commit.sha, url: site, version });
   } catch (e: any) {
     console.error('publish failed', e);
     if (e.status === 401 || e.status === 403 || e.status === 404) return json({ error: 'github', repo: env.GITHUB_REPO, expired: true }, 409);
@@ -176,15 +199,16 @@ export default {
       return new Response(null, { status: 204, headers: CORS });
     }
     const route = `${request.method} ${url.pathname}`;
-    if (['GET /stats', 'POST /publish', 'POST /github'].includes(route)) {
+    if (['GET /stats', 'POST /publish', 'GET /publish', 'POST /github'].includes(route)) {
       if (env.LOGINS && !(await env.LOGINS.limit({ key: request.headers.get('cf-connecting-ip') ?? '' })).success) return json({ error: 'Too many tries, wait a minute' }, 429);
       const pw = env.STATS_PASSWORD;
       const given = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
       if (!pw || !eq(given, pw)) return json({ error: 'Wrong password' }, 401);
       if (route === 'GET /stats') return json(await stats(url, env));
       if (route === 'POST /publish') return publish(request, env);
+      if (route === 'GET /publish') return publishStatus(url, env);
       return connectGithub(request, env);
     }
-    return json({ ok: true, name: 'yourlinki stats' });
+    return json({ ok: true, name: 'yourlinki stats', url: pageUrl(env) });
   },
 };

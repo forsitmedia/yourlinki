@@ -5,7 +5,7 @@ import { pageTab } from './page-tab';
 import { editPageBlock, editSocialIcon, addItemMenu, musicSheet } from './block-editor';
 import { settingsTab } from './settings-tab';
 import { insightsTab } from './insights-tab';
-import { openPublish } from './publish';
+import { openPublish, pageUrl } from './publish';
 import { welcome } from './welcome';
 import { VisualCanvas } from './canvas';
 import { h, segmented, svg } from './ui';
@@ -18,6 +18,7 @@ type Tab = 'page' | 'insights' | 'settings';
 const TITLES: Record<Tab, string> = { page: 'Your Page', insights: 'Insights', settings: 'Settings' };
 let tab: Tab = 'page';
 const saveBtn = h('button', { class: 'btn-text bold', type: 'button', onclick: openPublish }, 'Publish') as HTMLButtonElement;
+const viewPage = h('a', { class: 'btn-text', href: pageUrl(), target: '_blank', rel: 'noopener' }, 'View Page');
 const canvasSave = h('button', { class: 'btn-text bold', type: 'button', 'aria-label': 'Publish page design', onclick: openPublish }, 'Publish') as HTMLButtonElement;
 const title = h('h1', { class: 'large-title' }), content = h('div', { class: 'content' });
 const newFrame = () => h('iframe', { title: 'Page preview', allow: 'autoplay; fullscreen; picture-in-picture' }) as HTMLIFrameElement;
@@ -87,7 +88,7 @@ new ResizeObserver(fitDevice).observe(deviceArea);
 
 document.getElementById('app')!.append(h('div', { class: 'app' },
   h('div', { class: 'editor' },
-    h('div', { class: 'navbar' }, h('a', { class: 'btn-text', href: '../', target: '_blank' }, 'View Page'), saveBtn),
+    h('div', { class: 'navbar' }, viewPage, saveBtn),
     title,
     segmented<Tab>([{ value: 'page', label: 'Page' }, { value: 'insights', label: 'Insights' }, { value: 'settings', label: 'Settings' }], tab, (v) => { tab = v; draw(); }),
     content),
@@ -128,7 +129,10 @@ function updatePreview() {
   surface.append(next);
 }
 /** Publish stays available (a download may never have been uploaded); a dot shows unpublished changes. */
-function markChanges() { [saveBtn, canvasSave].forEach((b) => b.classList.toggle('has-changes', isDirty())); }
+function markChanges() {
+  viewPage.setAttribute('href', pageUrl());
+  [saveBtn, canvasSave].forEach((b) => b.classList.toggle('has-changes', isDirty()));
+}
 onChange((rerender) => {
   markChanges();
   clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 120);
